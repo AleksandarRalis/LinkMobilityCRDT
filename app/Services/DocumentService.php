@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Document;
+use App\Models\User;
 use App\Repositories\Interfaces\DocumentRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -17,15 +18,24 @@ class DocumentService
     ) {}
 
     /**
-     * Get all documents for the authenticated user.
+     * Get all documents for the authenticated user (owned + shared).
      */
-    public function getDocumentsForUser(): Collection
+    public function getDocumentsForUser(): array
     {
-        return $this->documentRepository->getByUserId(Auth::id());
+        $user = Auth::user();
+        
+        $owned = $this->documentRepository->getByUserId($user->id);
+        $shared = $user->sharedDocuments()->with('user:id,name')->get();
+
+        return [
+            'owned' => $owned,
+            'shared' => $shared,
+        ];
     }
 
     /**
      * Get a specific document by ID.
+     * Checks for both owner and shared access.
      */
     public function getDocument(int $id): Document
     {
@@ -35,8 +45,8 @@ class DocumentService
             throw new NotFoundHttpException('Document not found.');
         }
 
-        // Check if user owns this document
-        if ($document->user_id !== Auth::id()) {
+        // Check if user has access (owner OR shared)
+        if (!$document->hasAccess(Auth::user())) {
             throw new AccessDeniedHttpException('You do not have access to this document.');
         }
 

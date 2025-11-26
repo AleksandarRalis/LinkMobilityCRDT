@@ -1,0 +1,125 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Document;
+use App\Models\User;
+use App\Repositories\Interfaces\DocumentRepositoryInterface;
+use App\Repositories\Interfaces\DocumentShareRepositoryInterface;
+use App\Repositories\Interfaces\UserRepositoryInterface;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+
+class DocumentShareService
+{
+    public function __construct(
+        protected DocumentShareRepositoryInterface $shareRepository,
+        protected DocumentRepositoryInterface $documentRepository,
+        protected UserRepositoryInterface $userRepository
+    ) {}
+
+    /**
+     * Share a document with a user by email.
+     */
+    public function shareWithEmail(int $documentId, string $email, string $permission = 'edit'): array
+    {
+        $document = $this->documentRepository->findById($documentId);
+        
+        if (!$document) {
+            throw new \Exception('Document not found');
+        }
+
+        // Only owner can share
+        if ($document->user_id !== Auth::id()) {
+            throw new \Exception('You do not have permission to share this document');
+        }
+
+        $user = $this->userRepository->findByEmail($email);
+        
+        if (!$user) {
+            throw new \Exception('User not found with this email');
+        }
+
+        // Can't share with yourself
+        if ($user->id === Auth::id()) {
+            throw new \Exception('You cannot share a document with yourself');
+        }
+
+        // Check if already shared
+        $existingShare = $this->shareRepository->findByDocumentAndUser($documentId, $user->id);
+        
+        if ($existingShare) {
+            throw new \Exception('Document is already shared with this user');
+        }
+
+        $share = $this->shareRepository->create([
+            'document_id' => $documentId,
+            'user_id' => $user->id,
+            'permission' => $permission,
+        ]);
+
+        return [
+            'share' => $share,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+        ];
+    }
+
+    /**
+     * Remove a share.
+     */
+    public function removeShare(int $documentId, int $userId): bool
+    {
+        $document = $this->documentRepository->findById($documentId);
+        
+        if (!$document) {
+            throw new \Exception('Document not found');
+        }
+
+        // Only owner can remove shares
+        if ($document->user_id !== Auth::id()) {
+            throw new \Exception('You do not have permission to manage shares for this document');
+        }
+
+        return $this->shareRepository->delete($documentId, $userId);
+    }
+
+    /**
+     * Get all shares for a document.
+     */
+    public function getDocumentShares(int $documentId): Collection
+    {
+        $document = $this->documentRepository->findById($documentId);
+        
+        if (!$document) {
+            throw new \Exception('Document not found');
+        }
+
+        // Only owner can view shares
+        if ($document->user_id !== Auth::id()) {
+            throw new \Exception('You do not have permission to view shares for this document');
+        }
+
+        return $this->shareRepository->getSharesForDocument($documentId);
+    }
+
+    /**
+     * Get documents shared with current user.
+     */
+    public function getSharedWithMe(): Collection
+    {
+        return $this->shareRepository->getSharedDocumentsForUser(Auth::id());
+    }
+
+    /**
+     * Check if user has access to document.
+     */
+    public function userHasAccess(int $documentId, int $userId): bool
+    {
+        return $this->shareRepository->userHasAccess($documentId, $userId);
+    }
+}
+

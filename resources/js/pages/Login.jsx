@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../contexts/ToastContext';
+import { ErrorAlert } from '../components/ui/ErrorMessage';
 
 export default function Login() {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const toast = useToast();
     
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -18,6 +21,7 @@ export default function Login() {
 
         try {
             await login(email, password);
+            toast.success('Welcome back!');
             navigate('/documents');
         } catch (err) {
             const message = err.response?.data?.message 
@@ -45,8 +49,8 @@ export default function Login() {
                     <h2 className="text-xl font-semibold text-white mb-6">Sign in to your account</h2>
 
                     {error && (
-                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-                            {error}
+                        <div className="mb-4">
+                            <ErrorAlert message={error} onDismiss={() => setError('')} />
                         </div>
                     )}
 
@@ -86,8 +90,11 @@ export default function Login() {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
+                            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900 flex items-center justify-center gap-2"
                         >
+                            {isSubmitting && (
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent"></div>
+                            )}
                             {isSubmitting ? 'Signing in...' : 'Sign in'}
                         </button>
                     </form>

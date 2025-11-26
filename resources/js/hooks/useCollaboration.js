@@ -1,106 +1,243 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from './useAuth';
+
+/**
+ * Connection states
+ */
+export const ConnectionState = {
+    DISCONNECTED: 'disconnected',
+    CONNECTING: 'connecting',
+    CONNECTED: 'connected',
+    RECONNECTING: 'reconnecting',
+};
 
 /**
  * Hook for managing real-time collaboration via Laravel Echo
+ * Includes automatic reconnection handling
  */
-export function useCollaboration(documentId) {
-    const { user } = useAuth();
+export function useCollaboration(documentId, user, callbacks = {}) {
     const [activeUsers, setActiveUsers] = useState([]);
-    const [isConnected, setIsConnected] = useState(false);
+    const [connectionState, setConnectionState] = useState(ConnectionState.DISCONNECTED);
+    const [reconnectAttempts, setReconnectAttempts] = useState(0);
+    
     const channelRef = useRef(null);
-    const onUpdateCallbackRef = useRef(null);
+    const updateCallbacksRef = useRef([]);
+    const callbacksRef = useRef(callbacks);
+    const reconnectTimeoutRef = useRef(null);
+
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const BASE_RECONNECT_DELAY = 1000; // 1 second
+
+    // Keep callbacks ref updated
+    useEffect(() => {
+        callbacksRef.current = callbacks;
+    }, [callbacks]);
 
     /**
-     * Join the document channel
+     * Register a callback for remote updates
      */
-    const joinChannel = useCallback((onUpdate) => {
-        if (!documentId || !window.Echo) return;
+    const onRemoteUpdate = useCallback((callback) => {
+        updateCallbacksRef.current.push(callback);
+        return () => {
+            updateCallbacksRef.current = updateCallbacksRef.current.filter(cb => cb !== callback);
+        };
+    }, []);
 
-        onUpdateCallbackRef.current = onUpdate;
+    /**
+     * Calculate reconnect delay with exponential backoff
+     */
+    const getReconnectDelay = useCallback((attempt) => {
+        return Math.min(BASE_RECONNECT_DELAY * Math.pow(2, attempt), 30000); // Max 30 seconds
+    }, []);
 
-        const channel = window.Echo.join(`document.${documentId}`)
-            .here((users) => {
-                // Initial list of users in the channel
-                setActiveUsers(users);
-                setIsConnected(true);
-            })
-            .joining((user) => {
-                // User joined
-                setActiveUsers((prev) => [...prev, user]);
-            })
-            .leaving((user) => {
-                // User left
-                setActiveUsers((prev) => prev.filter((u) => u.id !== user.id));
-            })
-            .listen('.document.updated', (data) => {
-                // Received update from another client
-                if (data.user_id !== user?.id && onUpdateCallbackRef.current) {
-                    onUpdateCallbackRef.current(data);
+    /**
+     * Connect to the document channel
+     */
+    const connect = useCallback(() => {
+        if (!documentId || !window.Echo || !user) {
+            return;
+        }
+
+        // Clear any pending reconnect
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+        }
+
+        setConnectionState(reconnectAttempts > 0 ? ConnectionState.RECONNECTING : ConnectionState.CONNECTING);
+
+        try {
+            const channel = window.Echo.join(`document.${documentId}`)
+                .here((users) => {
+                    setActiveUsers(users);
+                    setConnectionState(ConnectionState.CONNECTED);
+                    setReconnectAttempts(0); // Reset on successful connection
+                    
+                    // Notify about reconnection
+                    if (callbacksRef.current.onReconnected && reconnectAttempts > 0) {
+                        callbacksRef.current.onReconnected();
+                    }
+                })
+                .joining((joiningUser) => {
+                    setActiveUsers((prev) => {
+                        if (prev.find(u => u.id === joiningUser.id)) return prev;
+                        return [...prev, joiningUser];
+                    });
+                    if (callbacksRef.current.onUserJoin) {
+                        callbacksRef.current.onUserJoin(joiningUser);
+                    }
+                })
+                .leaving((leavingUser) => {
+                    setActiveUsers((prev) => prev.filter((u) => u.id !== leavingUser.id));
+                    if (callbacksRef.current.onUserLeave) {
+                        callbacksRef.current.onUserLeave(leavingUser);
+                    }
+                })
+                .error((error) => {
+                    console.error('[Collab] Channel error:', error);
+                    handleDisconnect();
+                });
+
+            // Listen for whispers
+            channel.listenForWhisper('update', (data) => {
+                if (data.userId !== user?.id) {
+                    updateCallbacksRef.current.forEach(cb => cb(data));
                 }
-            })
-            .error((error) => {
-                console.error('Channel error:', error);
-                setIsConnected(false);
             });
 
-        channelRef.current = channel;
-    }, [documentId, user?.id]);
+            // Listen for server broadcasts
+            channel.listen('.document.updated', (data) => {
+                if (data.user_id !== user?.id) {
+                    updateCallbacksRef.current.forEach(cb => cb({
+                        update: data.content,
+                        userId: data.user_id,
+                        userName: data.user_name,
+                    }));
+                }
+            });
+
+            channelRef.current = channel;
+        } catch (error) {
+            console.error('[Collab] Failed to join channel:', error);
+            handleDisconnect();
+        }
+    }, [documentId, user, reconnectAttempts]);
 
     /**
-     * Leave the document channel
+     * Handle disconnection and attempt reconnect
      */
-    const leaveChannel = useCallback(() => {
-        if (channelRef.current && window.Echo) {
-            window.Echo.leave(`document.${documentId}`);
+    const handleDisconnect = useCallback(() => {
+        setConnectionState(ConnectionState.DISCONNECTED);
+        channelRef.current = null;
+        setActiveUsers([]);
+
+        // Notify about disconnection
+        if (callbacksRef.current.onDisconnected) {
+            callbacksRef.current.onDisconnected();
+        }
+
+        // Attempt reconnect if under max attempts
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            const delay = getReconnectDelay(reconnectAttempts);
+            
+            reconnectTimeoutRef.current = setTimeout(() => {
+                setReconnectAttempts(prev => prev + 1);
+            }, delay);
+        } else {
+            console.error('[Collab] Max reconnection attempts reached');
+            if (callbacksRef.current.onMaxReconnectAttempts) {
+                callbacksRef.current.onMaxReconnectAttempts();
+            }
+        }
+    }, [reconnectAttempts, getReconnectDelay]);
+
+    /**
+     * Manual reconnect function
+     */
+    const reconnect = useCallback(() => {
+        setReconnectAttempts(0);
+        if (channelRef.current) {
+            window.Echo?.leave(`document.${documentId}`);
+            channelRef.current = null;
+        }
+        connect();
+    }, [documentId, connect]);
+
+    /**
+     * Listen for global Pusher connection state changes
+     */
+    useEffect(() => {
+        if (!window.Echo?.connector?.pusher) return;
+
+        const pusher = window.Echo.connector.pusher;
+
+        const handleStateChange = (states) => {
+            
+            if (states.current === 'connected' && states.previous !== 'connected') {
+                // Pusher reconnected, rejoin channel
+                if (documentId && user && !channelRef.current) {
+                    connect();
+                }
+            } else if (states.current === 'disconnected' || states.current === 'failed') {
+                handleDisconnect();
+            }
+        };
+
+        pusher.connection.bind('state_change', handleStateChange);
+
+        return () => {
+            pusher.connection.unbind('state_change', handleStateChange);
+        };
+    }, [documentId, user, connect, handleDisconnect]);
+
+    /**
+     * Connect when dependencies are ready or reconnect attempts change
+     */
+    useEffect(() => {
+        if (!documentId || !window.Echo || !user) {
+            return;
+        }
+
+        connect();
+
+        return () => {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+            }
+            if (window.Echo) {
+                window.Echo.leave(`document.${documentId}`);
+            }
             channelRef.current = null;
             setActiveUsers([]);
-            setIsConnected(false);
-        }
-    }, [documentId]);
+            setConnectionState(ConnectionState.DISCONNECTED);
+        };
+    }, [documentId, user?.id, reconnectAttempts]);
 
     /**
      * Broadcast update to other clients
      */
     const broadcastUpdate = useCallback((content) => {
-        if (!channelRef.current || !user) return;
+        if (!channelRef.current || !user || connectionState !== ConnectionState.CONNECTED) {
+            console.warn('[Collab] Cannot broadcast - not connected');
+            return false;
+        }
 
-        // Use whisper for client-to-client communication (faster, no server roundtrip)
-        channelRef.current.whisper('typing', {
-            user_id: user.id,
-            user_name: user.name,
-            content: content,
+        channelRef.current.whisper('update', {
+            update: content,
+            userId: user.id,
+            userName: user.name,
             timestamp: new Date().toISOString(),
         });
-    }, [user]);
-
-    /**
-     * Listen for whisper events (client-to-client)
-     */
-    const listenForWhispers = useCallback((onWhisper) => {
-        if (!channelRef.current) return;
-
-        channelRef.current.listenForWhisper('typing', (data) => {
-            if (data.user_id !== user?.id) {
-                onWhisper(data);
-            }
-        });
-    }, [user?.id]);
-
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            leaveChannel();
-        };
-    }, [leaveChannel]);
+        return true;
+    }, [user, connectionState]);
 
     return {
         activeUsers,
-        isConnected,
-        joinChannel,
-        leaveChannel,
+        connectionState,
+        isConnected: connectionState === ConnectionState.CONNECTED,
+        isReconnecting: connectionState === ConnectionState.RECONNECTING,
+        reconnectAttempts,
         broadcastUpdate,
-        listenForWhispers,
+        onRemoteUpdate,
+        reconnect,
     };
 }
-

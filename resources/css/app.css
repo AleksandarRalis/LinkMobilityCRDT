@@ -7,6 +7,275 @@
 @source '../**/*.jsx';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Editor Prose Styles */
+.prose {
+    color: #e4e4e7;
+    font-size: 1rem;
+    line-height: 1.75;
+}
+
+.prose h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    color: #ffffff;
+}
+
+.prose h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #ffffff;
+}
+
+.prose h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: #ffffff;
+}
+
+.prose p {
+    margin-bottom: 1rem;
+}
+
+.prose strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.prose em {
+    font-style: italic;
+}
+
+.prose ul,
+.prose ol {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.prose ul {
+    list-style-type: disc;
+}
+
+.prose ol {
+    list-style-type: decimal;
+}
+
+.prose li {
+    margin-bottom: 0.25rem;
+}
+
+.prose blockquote {
+    border-left: 4px solid #f59e0b;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #a1a1aa;
+    font-style: italic;
+}
+
+.prose code {
+    background-color: #27272a;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+    font-family: var(--font-mono);
+    color: #f59e0b;
+}
+
+.prose pre {
+    background-color: #18181b;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.prose pre code {
+    background: none;
+    padding: 0;
+    color: #e4e4e7;
+}
+
+.prose a {
+    color: #f59e0b;
+    text-decoration: underline;
+}
+
+.prose a:hover {
+    color: #fbbf24;
+}
+
+.prose hr {
+    border-color: #3f3f46;
+    margin: 2rem 0;
+}
+
+/* Tiptap Editor Focus */
+.ProseMirror {
+    outline: none;
+}
+
+.ProseMirror:focus {
+    outline: none;
+}
+
+/* Placeholder */
+.ProseMirror p.is-editor-empty:first-child::before {
+    content: 'Start typing...';
+    float: left;
+    color: #71717a;
+    pointer-events: none;
+    height: 0;
+}
+
+/* Toast Animations */
+@keyframes slide-in-right {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slide-out-right {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+
+.animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out forwards;
+}
+
+.animate-slide-out-right {
+    animation: slide-out-right 0.3s ease-in forwards;
+}
+
+/* Selection Style */
+::selection {
+    background-color: rgba(245, 158, 11, 0.3);
+    color: #ffffff;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #18181b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+}
+
+/* Focus Ring Styles */
+.focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900;
+}
+
+/* Smooth Page Transitions */
+.page-transition {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Button Hover Effect */
+.btn-hover {
+    transition: all 0.15s ease;
+}
+
+.btn-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-hover:active {
+    transform: translateY(0);
+}
+
+/* Card Hover Effect */
+.card-hover {
+    transition: all 0.2s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Gradient Text */
+.gradient-text {
+    background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Pulsing Dot Animation */
+@keyframes pulse-dot {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse-dot {
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Skeleton Loading */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        #27272a 0%,
+        #3f3f46 50%,
+        #27272a 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
 }

@@ -1,68 +1,34 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import * as Y from 'yjs';
 import { syncApi } from '../services/api';
 
 /**
  * Hook for managing Yjs document state
  */
-export function useYjs(documentId) {
+export function useYjs(documentId, onLocalChange = null) {
+    const [ydoc, setYdoc] = useState(null);
+    const [isReady, setIsReady] = useState(false);
     const ydocRef = useRef(null);
     const updateCountRef = useRef(0);
     const saveTimeoutRef = useRef(null);
     const isSavingRef = useRef(false);
+    const onLocalChangeRef = useRef(onLocalChange);
 
-    const SAVE_DEBOUNCE_MS = 2000; // Save 2 seconds after last edit
-    const MAX_UPDATES_BEFORE_SAVE = 50; // Or after 50 updates
+    const SAVE_DEBOUNCE_MS = 2000;
+    const MAX_UPDATES_BEFORE_SAVE = 50;
 
-    /**
-     * Initialize Y.Doc
-     */
-    const initializeDoc = useCallback((initialContent = null) => {
-        // Create new Y.Doc
-        const ydoc = new Y.Doc();
-        ydocRef.current = ydoc;
-        updateCountRef.current = 0;
-
-        // If we have initial content, apply it
-        if (initialContent) {
-            try {
-                const update = base64ToUint8Array(initialContent);
-                Y.applyUpdate(ydoc, update);
-            } catch (error) {
-                console.error('Failed to apply initial content:', error);
-            }
-        }
-
-        return ydoc;
-    }, []);
+    // Keep callback ref updated
+    useEffect(() => {
+        onLocalChangeRef.current = onLocalChange;
+    }, [onLocalChange]);
 
     /**
-     * Get the Y.Doc instance
+     * Get current document state as base64
      */
-    const getDoc = useCallback(() => {
-        return ydocRef.current;
-    }, []);
-
-    /**
-     * Encode current document state to base64
-     */
-    const encodeState = useCallback(() => {
+    const getStateAsBase64 = useCallback(() => {
         if (!ydocRef.current) return null;
         const state = Y.encodeStateAsUpdate(ydocRef.current);
         return uint8ArrayToBase64(state);
-    }, []);
-
-    /**
-     * Apply an update from another client
-     */
-    const applyUpdate = useCallback((base64Update) => {
-        if (!ydocRef.current) return;
-        try {
-            const update = base64ToUint8Array(base64Update);
-            Y.applyUpdate(ydocRef.current, update);
-        } catch (error) {
-            console.error('Failed to apply update:', error);
-        }
     }, []);
 
     /**
@@ -71,7 +37,7 @@ export function useYjs(documentId) {
     const saveToBackend = useCallback(async () => {
         if (!ydocRef.current || !documentId || isSavingRef.current) return;
 
-        const content = encodeState();
+        const content = getStateAsBase64();
         if (!content) return;
 
         isSavingRef.current = true;
@@ -79,11 +45,11 @@ export function useYjs(documentId) {
             await syncApi.save(documentId, content, updateCountRef.current);
             updateCountRef.current = 0;
         } catch (error) {
-            console.error('Failed to save document:', error);
+            console.error('[Yjs] Failed to save:', error);
         } finally {
             isSavingRef.current = false;
         }
-    }, [documentId, encodeState]);
+    }, [documentId, getStateAsBase64]);
 
     /**
      * Schedule a save (debounced)
@@ -91,57 +57,90 @@ export function useYjs(documentId) {
     const scheduleSave = useCallback(() => {
         updateCountRef.current++;
 
-        // Clear existing timeout
         if (saveTimeoutRef.current) {
             clearTimeout(saveTimeoutRef.current);
         }
 
-        // Force save if we hit the update threshold
         if (updateCountRef.current >= MAX_UPDATES_BEFORE_SAVE) {
             saveToBackend();
             return;
         }
 
-        // Otherwise debounce the save
         saveTimeoutRef.current = setTimeout(() => {
             saveToBackend();
         }, SAVE_DEBOUNCE_MS);
     }, [saveToBackend]);
 
-    /**
-     * Clean up on unmount
-     */
-    const destroy = useCallback(() => {
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-        }
-        
-        // Save any pending changes
-        if (updateCountRef.current > 0 && ydocRef.current) {
-            saveToBackend();
-        }
-
-        if (ydocRef.current) {
-            ydocRef.current.destroy();
-            ydocRef.current = null;
-        }
-    }, [saveToBackend]);
-
-    // Cleanup on unmount
+    // Initialize Y.Doc on mount
     useEffect(() => {
-        return () => {
-            destroy();
+        if (!documentId) return;
+
+        const doc = new Y.Doc();
+        ydocRef.current = doc;
+        updateCountRef.current = 0;
+
+        // Listen for updates
+        const handleUpdate = (update, origin) => {
+            
+            // Only process local updates (origin is null/undefined for local, 'remote' for applied remote updates)
+            if (origin !== 'remote') {
+                
+                // Schedule save
+                scheduleSave();
+                
+                // Call the broadcast callback
+                if (onLocalChangeRef.current) {
+                    const state = Y.encodeStateAsUpdate(doc);
+                    const base64 = uint8ArrayToBase64(state);
+                    onLocalChangeRef.current(base64);
+                }
+            }
         };
-    }, [destroy]);
+
+        doc.on('update', handleUpdate);
+
+        // Set state to trigger re-render
+        setYdoc(doc);
+        setIsReady(true);
+
+        return () => {
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+            doc.off('update', handleUpdate);
+            doc.destroy();
+            ydocRef.current = null;
+            setYdoc(null);
+            setIsReady(false);
+        };
+    }, [documentId, scheduleSave]);
+
+    /**
+     * Apply an update from another client
+     */
+    const applyRemoteUpdate = useCallback((update) => {
+        if (!ydocRef.current) {
+            console.warn('[Yjs] Cannot apply remote update - no doc');
+            return;
+        }
+        try {
+            if (update instanceof Uint8Array) {
+                Y.applyUpdate(ydocRef.current, update, 'remote');
+            } else if (typeof update === 'string') {
+                const decoded = base64ToUint8Array(update);
+                Y.applyUpdate(ydocRef.current, decoded, 'remote');
+            }
+        } catch (error) {
+            console.error('[Yjs] Failed to apply remote update:', error);
+        }
+    }, []);
 
     return {
-        initializeDoc,
-        getDoc,
-        encodeState,
-        applyUpdate,
-        scheduleSave,
+        ydoc,
+        isReady,
+        applyRemoteUpdate,
+        getStateAsBase64,
         saveToBackend,
-        destroy,
     };
 }
 
@@ -169,4 +168,3 @@ function base64ToUint8Array(base64) {
     }
     return bytes;
 }
-

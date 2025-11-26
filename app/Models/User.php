@@ -57,6 +57,16 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Get documents shared with this user.
+     */
+    public function sharedDocuments(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Document::class, 'document_shares')
+            ->withPivot('permission')
+            ->withTimestamps();
+    }
+
+    /**
      * Get the identifier that will be stored in the subject claim of the JWT.
      */
     public function getJWTIdentifier(): mixed

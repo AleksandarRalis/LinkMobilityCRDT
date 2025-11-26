@@ -9,6 +9,7 @@ export const authApi = {
     login: (data) => axios.post('/login', data),
     logout: () => axios.post('/logout'),
     me: () => axios.get('/me'),
+    refresh: () => axios.post('/refresh'),
 };
 
 /**
@@ -18,6 +19,18 @@ export const documentApi = {
     list: () => axios.get('/documents'),
     get: (id) => axios.get(`/documents/${id}`),
     create: (data) => axios.post('/documents', data),
+};
+
+/**
+ * Document Sharing API calls
+ */
+export const shareApi = {
+    share: (documentId, email, permission = 'edit') => 
+        axios.post(`/documents/${documentId}/share`, { email, permission }),
+    removeShare: (documentId, userId) => 
+        axios.delete(`/documents/${documentId}/share/${userId}`),
+    getShares: (documentId) => 
+        axios.get(`/documents/${documentId}/shares`),
 };
 
 /**

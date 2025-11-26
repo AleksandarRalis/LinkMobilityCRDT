@@ -7,6 +7,9 @@ use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenExpiredException;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenInvalidException;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 
 class AuthService
 {
@@ -55,11 +58,38 @@ class AuthService
     }
 
     /**
+     * Refresh the JWT token.
+     * Returns a new token if the current one is still valid or within refresh window.
+     */
+    public function refresh(): array
+    {
+        try {
+            $newToken = JWTAuth::refresh(JWTAuth::getToken());
+            $user = JWTAuth::setToken($newToken)->toUser();
+
+            return [
+                'user' => $user,
+                'token' => $newToken,
+            ];
+        } catch (TokenExpiredException $e) {
+            throw new JWTException('Token has expired and cannot be refreshed');
+        } catch (TokenInvalidException $e) {
+            throw new JWTException('Token is invalid');
+        } catch (JWTException $e) {
+            throw $e;
+        }
+    }
+
+    /**
      * Logout user and invalidate token.
      */
     public function logout(): void
     {
-        JWTAuth::invalidate(JWTAuth::getToken());
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
+        } catch (JWTException $e) {
+            // Token might already be invalid, that's ok
+        }
     }
 
     /**

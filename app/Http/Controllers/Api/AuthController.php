@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Services\AuthService;
 use Illuminate\Http\JsonResponse;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 use Symfony\Component\HttpFoundation\Cookie;
 
 class AuthController extends Controller
@@ -39,24 +40,35 @@ class AuthController extends Controller
     }
 
     /**
+     * Refresh the JWT token.
+     */
+    public function refresh(): JsonResponse
+    {
+        try {
+            $result = $this->authService->refresh();
+
+            return $this->respondWithToken($result['token'], $result['user'], 'Token refreshed successfully');
+        } catch (JWTException $e) {
+            // Clear the invalid cookie
+            $cookie = $this->createExpiredCookie();
+
+            return response()->json([
+                'message' => 'Could not refresh token',
+                'error' => $e->getMessage(),
+            ], 401)->withCookie($cookie);
+        }
+    }
+
+    /**
      * Logout user and invalidate token.
      */
     public function logout(): JsonResponse
     {
         $this->authService->logout();
 
-        // Clear the token cookie
-        $cookie = Cookie::create(self::TOKEN_COOKIE_NAME)
-            ->withValue('')
-            ->withExpires(time() - 3600)
-            ->withPath('/')
-            ->withHttpOnly(true)
-            ->withSecure(config('app.env') === 'production')
-            ->withSameSite('Lax');
-
         return response()->json([
             'message' => 'Successfully logged out',
-        ])->withCookie($cookie);
+        ])->withCookie($this->createExpiredCookie());
     }
 
     /**
@@ -88,6 +100,20 @@ class AuthController extends Controller
             'message' => $message,
             'user' => $user,
         ], $status)->withCookie($cookie);
+    }
+
+    /**
+     * Create an expired cookie to clear the token.
+     */
+    private function createExpiredCookie(): Cookie
+    {
+        return Cookie::create(self::TOKEN_COOKIE_NAME)
+            ->withValue('')
+            ->withExpires(time() - 3600)
+            ->withPath('/')
+            ->withHttpOnly(true)
+            ->withSecure(config('app.env') === 'production')
+            ->withSameSite('Lax');
     }
 }
 

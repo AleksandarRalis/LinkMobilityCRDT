@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\DocumentShareController;
 use App\Http\Controllers\Api\DocumentSyncController;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,7 @@ Broadcast::routes(['middleware' => ['auth:api']]);
 */
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/refresh', [AuthController::class, 'refresh']);
 
 /*
 |--------------------------------------------------------------------------
@@ -56,5 +58,11 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/documents/{id}/snapshot', [DocumentSyncController::class, 'createSnapshot']);
     Route::get('/documents/{id}/versions', [DocumentSyncController::class, 'versions']);
     Route::post('/documents/{id}/restore', [DocumentSyncController::class, 'restore']);
+
+    // Document Sharing
+    Route::post('/documents/{id}/share', [DocumentShareController::class, 'share']);
+    Route::delete('/documents/{documentId}/share/{userId}', [DocumentShareController::class, 'removeShare']);
+    Route::get('/documents/{id}/shares', [DocumentShareController::class, 'getShares']);
+    Route::get('/shared-with-me', [DocumentShareController::class, 'sharedWithMe']);
 });
 

@@ -8,20 +8,75 @@ window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 window.axios.defaults.baseURL = '/api';
 window.axios.defaults.withCredentials = true; // Send cookies with requests
 
-// Axios Response Interceptor - Handle auth errors
+// Track if we're currently refreshing to prevent multiple refresh attempts
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
+// Axios Response Interceptor - Handle auth errors with token refresh
 axios.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+        const originalRequest = error.config;
         const status = error.response?.status;
 
-        // Handle 401 Unauthorized - redirect to login
-        if (status === 401) {
-            // Only redirect if not already on login/register page
-            const isAuthPage = window.location.pathname === '/login' 
-                || window.location.pathname === '/register';
-            
-            if (!isAuthPage) {
-                window.location.href = '/login';
+        // Handle 401 Unauthorized
+        if (status === 401 && !originalRequest._retry) {
+            // Skip refresh for auth endpoints
+            const isAuthEndpoint = originalRequest.url === '/login' 
+                || originalRequest.url === '/register'
+                || originalRequest.url === '/refresh';
+
+            if (isAuthEndpoint) {
+                return Promise.reject(error);
+            }
+
+            // If already refreshing, queue this request
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(() => {
+                    return axios(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+                // Attempt to refresh the token
+                await axios.post('/refresh');
+                
+                processQueue(null);
+                
+                // Retry the original request
+                return axios(originalRequest);
+            } catch (refreshError) {
+                processQueue(refreshError);
+                
+                // Refresh failed - redirect to login
+                const isAuthPage = window.location.pathname === '/login' 
+                    || window.location.pathname === '/register';
+                
+                if (!isAuthPage) {
+                    window.location.href = '/login';
+                }
+                
+                return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
             }
         }
 

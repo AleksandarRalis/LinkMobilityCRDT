@@ -6,12 +6,14 @@ import { StrictMode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { DocumentProvider } from './contexts/DocumentContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { useAuth } from './hooks/useAuth';
 
 // Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Documents from './pages/Documents';
+import DocumentEditor from './pages/DocumentEditor';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -65,10 +67,11 @@ function ComingSoon({ title }) {
 
 function App() {
     return (
-        <AuthProvider>
-            <DocumentProvider>
-                <BrowserRouter>
-                <Routes>
+        <ToastProvider>
+            <AuthProvider>
+                <DocumentProvider>
+                    <BrowserRouter>
+                    <Routes>
                     {/* Public Routes */}
                     <Route
                         path="/login"
@@ -100,18 +103,19 @@ function App() {
                         path="/documents/:id"
                         element={
                             <ProtectedRoute>
-                                <ComingSoon title="Editor" />
+                                <DocumentEditor />
                             </ProtectedRoute>
                         }
                     />
 
-                    {/* Default redirect */}
-                    <Route path="/" element={<Navigate to="/documents" replace />} />
-                    <Route path="*" element={<Navigate to="/documents" replace />} />
-                </Routes>
-                </BrowserRouter>
-            </DocumentProvider>
-        </AuthProvider>
+                        {/* Default redirect */}
+                        <Route path="/" element={<Navigate to="/documents" replace />} />
+                        <Route path="*" element={<Navigate to="/documents" replace />} />
+                    </Routes>
+                    </BrowserRouter>
+                </DocumentProvider>
+            </AuthProvider>
+        </ToastProvider>
     );
 }
 
