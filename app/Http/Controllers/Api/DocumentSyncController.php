@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 
 class DocumentSyncController extends Controller
 {
-    private const SNAPSHOT_UPDATE_THRESHOLD = 100; // Create snapshot every 50 updates
+    private const SNAPSHOT_UPDATE_THRESHOLD = 50; // Create snapshot every 50 updates
     private const SNAPSHOT_TIME_THRESHOLD = 30;   // Or every 30 seconds
 
     public function __construct(

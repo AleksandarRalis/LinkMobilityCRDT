@@ -14,7 +14,7 @@ export function useYjs(documentId, onLocalChange = null) {
     const isSavingRef = useRef(false);
     const onLocalChangeRef = useRef(onLocalChange);
 
-    const SAVE_DEBOUNCE_MS = 2000;
+    const SAVE_DEBOUNCE_MS = 10000;
     const MAX_UPDATES_BEFORE_SAVE = 50;
 
     // Keep callback ref updated
@@ -114,6 +114,17 @@ export function useYjs(documentId, onLocalChange = null) {
             setIsReady(false);
         };
     }, [documentId, scheduleSave]);
+
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            saveToBackend();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [saveToBackend]);
 
     /**
      * Apply an update from another client
