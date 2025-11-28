@@ -57,12 +57,12 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/documents/{id}/save', [DocumentSyncController::class, 'save']);
     Route::post('/documents/{id}/snapshot', [DocumentSyncController::class, 'createSnapshot']);
     Route::get('/documents/{id}/versions', [DocumentSyncController::class, 'versions']);
+    Route::get('/documents/{id}/versions/{versionNumber}', [DocumentSyncController::class, 'previewVersion']);
     Route::post('/documents/{id}/restore', [DocumentSyncController::class, 'restore']);
 
     // Document Sharing
     Route::post('/documents/{id}/share', [DocumentShareController::class, 'share']);
     Route::delete('/documents/{documentId}/share/{userId}', [DocumentShareController::class, 'removeShare']);
     Route::get('/documents/{id}/shares', [DocumentShareController::class, 'getShares']);
-    Route::get('/shared-with-me', [DocumentShareController::class, 'sharedWithMe']);
 });
 

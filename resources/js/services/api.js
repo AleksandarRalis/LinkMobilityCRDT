@@ -40,7 +40,8 @@ export const syncApi = {
     // Save document state (called periodically, not on every edit)
     save: (id, content, updateCount) => axios.post(`/documents/${id}/save`, { content, update_count: updateCount }),
     createSnapshot: (id) => axios.post(`/documents/${id}/snapshot`),
-    getVersions: (id) => axios.get(`/documents/${id}/versions`),
+    getVersions: (id, page = 1) => axios.get(`/documents/${id}/versions`, { params: { page } }),
+    getVersionPreview: (id, versionNumber) => axios.get(`/documents/${id}/versions/${versionNumber}`),
     restore: (id, versionNumber) => axios.post(`/documents/${id}/restore`, { version_number: versionNumber }),
 };
 

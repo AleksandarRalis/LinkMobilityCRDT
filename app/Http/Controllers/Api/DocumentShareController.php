@@ -76,17 +76,5 @@ class DocumentShareController extends Controller
             ], 400);
         }
     }
-
-    /**
-     * Get documents shared with current user.
-     */
-    public function sharedWithMe(): JsonResponse
-    {
-        $documents = $this->shareService->getSharedWithMe();
-
-        return response()->json([
-            'documents' => $documents,
-        ]);
-    }
 }
 

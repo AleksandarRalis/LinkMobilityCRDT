@@ -99,15 +99,43 @@ class DocumentSyncController extends Controller
     }
 
     /**
-     * Get version history.
+     * Get version history (paginated, 10 per page).
+     * Page number is automatically read from request query parameter.
      */
-    public function versions(int $id): JsonResponse
+    public function versions(Request $request, int $id): JsonResponse
     {
-        $versions = $this->documentService->getVersionHistory($id);
+        $result = $this->documentService->getVersionHistory($id);
 
         return response()->json([
-            'versions' => $versions,
+            'versions' => $result['data'],
+            'pagination' => [
+                'total' => $result['total'],
+                'page' => $result['page'],
+                'per_page' => 10,
+                'last_page' => $result['last_page'],
+            ],
         ]);
+    }
+
+    /**
+     * Preview a specific version (get content without restoring).
+     */
+    public function previewVersion(int $id, int $versionNumber): JsonResponse
+    {
+        try {
+            $result = $this->documentService->getVersionContent($id, $versionNumber);
+
+            return response()->json([
+                'content' => $result['content'],
+                'version_number' => $result['version_number'],
+                'created_at' => $result['created_at'],
+                'user' => $result['user'],
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 404);
+        }
     }
 
     /**
@@ -119,7 +147,7 @@ class DocumentSyncController extends Controller
             'version_number' => 'required|integer|min:1',
         ]);
 
-        $versionNumber = $this->documentService->restoreToVersion($id, $validated['version_number'] -1);
+        $versionNumber = $this->documentService->restoreToVersion($id, $validated['version_number']);
 
         // Get updated document
         $result = $this->documentService->getDocumentWithContent($id);

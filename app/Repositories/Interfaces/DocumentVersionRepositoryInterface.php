@@ -3,14 +3,15 @@
 namespace App\Repositories\Interfaces;
 
 use App\Models\DocumentVersion;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 interface DocumentVersionRepositoryInterface
 {
     /**
-     * Get all versions for a document.
+     * Get all versions for a document (paginated, 10 per page).
+     * Page number is automatically read from request.
      */
-    public function getByDocumentId(int $documentId): Collection;
+    public function getByDocumentId(int $documentId): LengthAwarePaginator;
 
     /**
      * Get the latest version for a document.

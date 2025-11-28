@@ -101,12 +101,22 @@ class DocumentService
     }
 
     /**
-     * Get version history.
+     * Get version history (paginated, 10 per page).
+     * Page number is automatically read from request.
      */
     public function getVersionHistory(int $id): array
     {
         $document = $this->getDocument($id);
         return $this->reconstructionService->getVersionHistory($document);
+    }
+
+    /**
+     * Get content for a specific version (preview without restoring).
+     */
+    public function getVersionContent(int $id, int $versionNumber): array
+    {
+        $document = $this->getDocument($id);
+        return $this->reconstructionService->getVersionContent($document, $versionNumber);
     }
 
     /**

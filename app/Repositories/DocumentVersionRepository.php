@@ -4,7 +4,7 @@ namespace App\Repositories;
 
 use App\Models\DocumentVersion;
 use App\Repositories\Interfaces\DocumentVersionRepositoryInterface;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class DocumentVersionRepository implements DocumentVersionRepositoryInterface
 {
@@ -13,14 +13,16 @@ class DocumentVersionRepository implements DocumentVersionRepositoryInterface
     ) {}
 
     /**
-     * Get all versions for a document.
+     * Get all versions for a document (paginated, 10 per page).
+     * Page number is automatically read from request.
      */
-    public function getByDocumentId(int $documentId): Collection
+    public function getByDocumentId(int $documentId): LengthAwarePaginator
     {
         return $this->model
             ->where('document_id', $documentId)
+            ->with('user:id,name')
             ->orderBy('version_number', 'desc')
-            ->get();
+            ->paginate(10);
     }
 
     /**
@@ -42,6 +44,7 @@ class DocumentVersionRepository implements DocumentVersionRepositoryInterface
         return $this->model
             ->where('document_id', $documentId)
             ->where('version_number', $versionNumber)
+            ->with('user:id,name')
             ->first();
     }
 

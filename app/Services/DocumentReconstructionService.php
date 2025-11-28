@@ -64,24 +64,33 @@ class DocumentReconstructionService
     }
 
     /**
-     * Get version history for a document.
+     * Get version history for a document (paginated, 10 per page).
+     * Page number is automatically read from request.
      */
     public function getVersionHistory(Document $document): array
     {
-        $versions = $this->documentVersionRepository->getByDocumentId($document->id);
+        $result = $this->documentVersionRepository->getByDocumentId($document->id);
 
-        return $versions->map(fn($v) => [
-            'id' => $v->id,
-            'version_number' => $v->version_number,
-            'user_id' => $v->user_id,
-            'created_at' => $v->created_at,
-        ])->toArray();
+        return [
+            'data' => $result->map(fn($v) => [
+                'id' => $v->id,
+                'version_number' => $v->version_number,
+                'user_id' => $v->user_id,
+                'user' => $v->user ? ['id' => $v->user->id, 'name' => $v->user->name] : null,
+                'created_at' => $v->created_at,
+            ])->toArray(),
+            'total' => $result->total(),
+            'page' => $result->currentPage(),
+            'per_page' => $result->perPage(),
+            'last_page' => $result->lastPage(),
+        ];
     }
 
     /**
-     * Restore document to a specific version.
+     * Get a version by document ID and version number.
+     * Throws exception if version not found.
      */
-    public function restoreToVersion(Document $document, int $versionNumber): void
+    private function getVersion(Document $document, int $versionNumber)
     {
         $version = $this->documentVersionRepository->getByDocumentIdAndVersion(
             $document->id,
@@ -91,6 +100,31 @@ class DocumentReconstructionService
         if (!$version) {
             throw new \InvalidArgumentException('Version not found.');
         }
+
+        return $version;
+    }
+
+    /**
+     * Get content for a specific version (preview without restoring).
+     */
+    public function getVersionContent(Document $document, int $versionNumber): array
+    {
+        $version = $this->getVersion($document, $versionNumber);
+
+        return [
+            'content' => $version->content,
+            'version_number' => $version->version_number,
+            'created_at' => $version->created_at,
+            'user' => $version->user ? ['id' => $version->user->id, 'name' => $version->user->name] : null,
+        ];
+    }
+
+    /**
+     * Restore document to a specific version.
+     */
+    public function restoreToVersion(Document $document, int $versionNumber): void
+    {
+        $version = $this->getVersion($document, $versionNumber);
 
         // Update document content to the version's content
         $this->documentRepository->updateContent($document, $version->content);

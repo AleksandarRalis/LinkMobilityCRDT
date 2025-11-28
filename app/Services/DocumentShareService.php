@@ -105,21 +105,5 @@ class DocumentShareService
 
         return $this->shareRepository->getSharesForDocument($documentId);
     }
-
-    /**
-     * Get documents shared with current user.
-     */
-    public function getSharedWithMe(): Collection
-    {
-        return $this->shareRepository->getSharedDocumentsForUser(Auth::id());
-    }
-
-    /**
-     * Check if user has access to document.
-     */
-    public function userHasAccess(int $documentId, int $userId): bool
-    {
-        return $this->shareRepository->userHasAccess($documentId, $userId);
-    }
 }
 

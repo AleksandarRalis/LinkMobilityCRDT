@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useYjs } from '@/hooks/useYjs';
@@ -8,29 +8,57 @@ import Editor from '@/components/Editor';
 import ActiveUsers from '@/components/ActiveUsers';
 import Notifications, { useNotifications } from '@/components/Notifications';
 import ShareModal from '@/components/ShareModal';
+import VersionHistoryModal from '@/components/VersionHistoryModal';
+import VersionPreviewModal from '@/components/VersionPreviewModal';
+import { useToast } from '@/contexts/ToastContext';
+
+const NOTIFICATION_DEBOUNCE_MS = 5000; // 5 seconds
 
 export default function DocumentEditor() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const toast = useToast();
 
     const [document, setDocument] = useState(null);
     const [versionNumber, setVersionNumber] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showVersionHistoryModal, setShowVersionHistoryModal] = useState(false);
+    const [showVersionPreviewModal, setShowVersionPreviewModal] = useState(false);
+    const [previewVersionNumber, setPreviewVersionNumber] = useState(null);
 
     // Notifications
     const { notifications, dismissNotification, notifyEdit, notifyJoin, notifyLeave } = useNotifications();
 
+    // Per-user debounce timers for edit notifications
+    const notificationTimersRef = useRef(new Map());
+
     // Yjs document (pure)
     const { ydoc, isReady, getState, applyUpdate, restoreToState } = useYjs(id);
 
-    // Handle remote update from another client
+    // Handle remote update from another client with per-user debouncing
     const handleRemoteUpdate = useCallback((data) => {
         if (data.update) {
             applyUpdate(data.update);
-            if (data.userName) notifyEdit(data.userName);
+            
+            // Debounce notifications per user
+            if (data.userName && data.userId) {
+                // Clear existing timer for this user
+                const existingTimer = notificationTimersRef.current.get(data.userId);
+                if (existingTimer) {
+                    clearTimeout(existingTimer);
+                }
+                
+                // Set new timer for this user
+                const timer = setTimeout(() => {
+                    notifyEdit(data.userName);
+                    notificationTimersRef.current.delete(data.userId);
+                }, NOTIFICATION_DEBOUNCE_MS);
+                
+                notificationTimersRef.current.set(data.userId, timer);
+            }
         }
     }, [applyUpdate, notifyEdit]);
 
@@ -60,6 +88,17 @@ export default function DocumentEditor() {
         onRemoteRestore: handleRemoteRestore,
         getState,
     });
+
+    // Cleanup notification timers on unmount
+    useEffect(() => {
+        return () => {
+            // Clear all pending notification timers
+            notificationTimersRef.current.forEach((timer) => {
+                clearTimeout(timer);
+            });
+            notificationTimersRef.current.clear();
+        };
+    }, []);
 
     // Wire Yjs local changes → broadcast + schedule save
     useEffect(() => {
@@ -104,20 +143,6 @@ export default function DocumentEditor() {
     const handleBack = () => {
         saveNow();
         navigate('/documents');
-    };
-
-    const handleRestore = async () => {
-        try {
-            const response = await syncApi.restore(id, versionNumber);
-            const postRestoreState = restoreToState(response.data.content);
-            setVersionNumber(response.data.version_number);
-
-            if (postRestoreState) {
-                broadcastRestore(postRestoreState, response.data.version_number);
-            }
-        } catch (err) {
-            console.error('[DocumentEditor] Restore failed:', err);
-        }
     };
 
     // ─────────────────────────────────────────────────────────────
@@ -189,10 +214,13 @@ export default function DocumentEditor() {
                                 </button>
                             )}
                             <button
-                                onClick={handleRestore}
+                                onClick={() => setShowVersionHistoryModal(true)}
                                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
                             >
-                                Restore version
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Version History
                             </button>
                             <ActiveUsers users={activeUsers} currentUserId={user?.id} />
                         </div>
@@ -203,6 +231,45 @@ export default function DocumentEditor() {
             <Notifications notifications={notifications} onDismiss={dismissNotification} />
 
             <ShareModal documentId={id} isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
+
+            <VersionHistoryModal 
+                documentId={id} 
+                isOpen={showVersionHistoryModal} 
+                onClose={() => setShowVersionHistoryModal(false)}
+                onPreview={(version) => {
+                    setPreviewVersionNumber(version.version_number);
+                    setShowVersionPreviewModal(true);
+                }}
+            />
+
+            <VersionPreviewModal
+                documentId={id}
+                versionNumber={previewVersionNumber}
+                isOpen={showVersionPreviewModal}
+                onClose={() => {
+                    setShowVersionPreviewModal(false);
+                    setPreviewVersionNumber(null);
+                }}
+                onRestore={async (versionNumber) => {
+                    try {
+                        const response = await syncApi.restore(id, versionNumber);
+                        const postRestoreState = restoreToState(response.data.content);
+                        setVersionNumber(response.data.version_number);
+
+                        if (postRestoreState) {
+                            broadcastRestore(postRestoreState, response.data.version_number);
+                        }
+                        toast.success(`Document restored to version ${versionNumber}`);
+                        setShowVersionPreviewModal(false);
+                        setShowVersionHistoryModal(false);
+                    } catch (err) {
+                        console.error('[DocumentEditor] Restore failed:', err);
+                        const errorMessage = err.response?.data?.message || 'Failed to restore version';
+                        toast.error(errorMessage);
+                        throw err;
+                    }
+                }}
+            />
 
             {/* Disconnection Banner */}
             {connectionState === ConnectionState.DISCONNECTED && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS && (
