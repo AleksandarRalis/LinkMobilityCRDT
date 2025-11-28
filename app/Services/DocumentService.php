@@ -9,12 +9,14 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use App\Repositories\Interfaces\DocumentVersionRepositoryInterface;
 
 class DocumentService
 {
     public function __construct(
         protected DocumentRepositoryInterface $documentRepository,
-        protected DocumentReconstructionService $reconstructionService
+        protected DocumentReconstructionService $reconstructionService,
+        protected DocumentVersionRepositoryInterface $documentVersionRepository
     ) {}
 
     /**
@@ -59,10 +61,12 @@ class DocumentService
     public function getDocumentWithContent(int $id): array
     {
         $document = $this->getDocument($id);
+        $version_number = $this->documentVersionRepository->getLatestByDocumentId($document->id)->version_number ?? 1;
 
         return [
             'document' => $document,
             'content' => $this->reconstructionService->getDocumentContent($document),
+            'version_number' => $version_number,
         ];
     }
 
@@ -108,10 +112,12 @@ class DocumentService
     /**
      * Restore to a specific version.
      */
-    public function restoreToVersion(int $id, int $versionNumber): void
+    public function restoreToVersion(int $id, int $versionNumber): int
     {
         $document = $this->getDocument($id);
         $this->reconstructionService->restoreToVersion($document, $versionNumber);
+
+        return $versionNumber;  
     }
 }
 

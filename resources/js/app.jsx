@@ -5,7 +5,6 @@ import { createRoot } from 'react-dom/client';
 import { StrictMode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import { DocumentProvider } from './contexts/DocumentContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { useAuth } from './hooks/useAuth';
 
@@ -69,8 +68,7 @@ function App() {
     return (
         <ToastProvider>
             <AuthProvider>
-                <DocumentProvider>
-                    <BrowserRouter>
+                <BrowserRouter>
                     <Routes>
                     {/* Public Routes */}
                     <Route
@@ -112,8 +110,7 @@ function App() {
                         <Route path="/" element={<Navigate to="/documents" replace />} />
                         <Route path="*" element={<Navigate to="/documents" replace />} />
                     </Routes>
-                    </BrowserRouter>
-                </DocumentProvider>
+                </BrowserRouter>
             </AuthProvider>
         </ToastProvider>
     );

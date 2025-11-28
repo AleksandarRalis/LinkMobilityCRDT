@@ -34,7 +34,8 @@ class DocumentController extends Controller
 
         return response()->json([
             'document' => $result['document'],
-            'content' => $result['content'],
+            'content' => $result['content'],    
+            'version_number' => $result['version_number'],
         ]);
     }
 

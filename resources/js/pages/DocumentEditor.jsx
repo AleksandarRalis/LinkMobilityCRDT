@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useYjs } from '@/hooks/useYjs';
-import { useCollaboration, ConnectionState } from '@/hooks/useCollaboration';
-import { documentApi } from '@/services/api';
+import { useDocumentChannel, ConnectionState } from '@/hooks/useDocumentChannel';
+import { documentApi, syncApi } from '@/services/api';
 import Editor from '@/components/Editor';
 import ActiveUsers from '@/components/ActiveUsers';
 import Notifications, { useNotifications } from '@/components/Notifications';
@@ -13,110 +13,116 @@ export default function DocumentEditor() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
-    
+
     const [document, setDocument] = useState(null);
+    const [versionNumber, setVersionNumber] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [saveStatus, setSaveStatus] = useState('saved');
     const [showShareModal, setShowShareModal] = useState(false);
 
-    // Notification system
-    const {
-        notifications,
-        dismissNotification,
-        notifyEdit,
-        notifyJoin,
-        notifyLeave,
-    } = useNotifications();
+    // Notifications
+    const { notifications, dismissNotification, notifyEdit, notifyJoin, notifyLeave } = useNotifications();
 
-    // Collaboration callbacks for join/leave/connection events
-    const collaborationCallbacks = useMemo(() => ({
-        onUserJoin: (joiningUser) => notifyJoin(joiningUser.name),
-        onUserLeave: (leavingUser) => notifyLeave(leavingUser.name),
-    }), [notifyJoin, notifyLeave]);
+    // Yjs document (pure)
+    const { ydoc, isReady, getState, applyUpdate, restoreToState } = useYjs(id);
 
-    // Initialize collaboration (presence & broadcasting) FIRST
+    // Handle remote update from another client
+    const handleRemoteUpdate = useCallback((data) => {
+        if (data.update) {
+            applyUpdate(data.update);
+            if (data.userName) notifyEdit(data.userName);
+        }
+    }, [applyUpdate, notifyEdit]);
+
+    // Handle remote restore from another client
+    const handleRemoteRestore = useCallback((data) => {
+        if (data.content) {
+            applyUpdate(data.content);
+            if (data.versionNumber) setVersionNumber(data.versionNumber);
+            if (data.userName) notifyEdit(`${data.userName} restored a previous version`);
+        }
+    }, [applyUpdate, notifyEdit]);
+
+    // Document channel (networking)
     const {
         activeUsers,
         connectionState,
-        isConnected,
-        isReconnecting,
         reconnectAttempts,
-        broadcastUpdate,
-        onRemoteUpdate,
         reconnect,
-    } = useCollaboration(id, user, collaborationCallbacks);
+        broadcast,
+        broadcastRestore,
+        scheduleSave,
+        saveNow,
+    } = useDocumentChannel(id, user, {
+        onUserJoin: (u) => notifyJoin(u.name),
+        onUserLeave: (u) => notifyLeave(u.name),
+        onRemoteUpdate: handleRemoteUpdate,
+        onRemoteRestore: handleRemoteRestore,
+        getState,
+    });
 
-    // Callback for when local changes happen - broadcast to other clients
-    const handleLocalChange = useCallback((base64State) => {
-        if (broadcastUpdate) {
-            broadcastUpdate(base64State);
-        }
-    }, [broadcastUpdate, isConnected]);
+    // Wire Yjs local changes → broadcast + schedule save
+    useEffect(() => {
+        if (!ydoc) return;
 
-    // Initialize Yjs with document ID and broadcast callback
-    const { 
-        ydoc, 
-        isReady: yjsReady,
-        applyRemoteUpdate,
-        getStateAsBase64,
-    } = useYjs(id, handleLocalChange);
+        const handleUpdate = (_update, origin) => {
+            if (origin !== 'remote') {
+                broadcast(getState());
+                scheduleSave();
+            }
+        };
+
+        ydoc.on('update', handleUpdate);
+        return () => ydoc.off('update', handleUpdate);
+    }, [ydoc, broadcast, getState, scheduleSave]);
 
     // Fetch document on mount
     useEffect(() => {
+        if (!id || !isReady) return;
+
         const fetchDocument = async () => {
             try {
                 setLoading(true);
                 const response = await documentApi.get(id);
-                
-                // API returns { document: {...}, content: "..." }
                 setDocument(response.data.document);
-                
-                // If document has content, load it into Yjs
-                if (response.data.content && ydoc) {
-                    try {
-                        applyRemoteUpdate(response.data.content);
-                    } catch (e) {
-                        console.warn('[Editor] Failed to load document content:', e);
-                    }
+                setVersionNumber(response.data.version_number);
+
+                if (response.data.content) {
+                    applyUpdate(response.data.content);
                 }
             } catch (err) {
-                console.error('[Editor] Failed to fetch document:', err);
+                console.error('[DocumentEditor] Failed to fetch:', err);
                 setError('Failed to load document');
             } finally {
                 setLoading(false);
             }
         };
 
-        if (id && yjsReady) {
-            fetchDocument();
-        }
-    }, [id, yjsReady, ydoc, applyRemoteUpdate]);
-
-    // Listen for remote updates (from other clients)
-    useEffect(() => {
-        const handleRemote = (data) => {
-            if (data.update) {
-                try {
-                    applyRemoteUpdate(data.update);
-                    
-                    // Show notification for the edit
-                    if (data.userId && data.userId !== user?.id) {
-                        notifyEdit(data.userName || 'Someone');
-                    }
-                } catch (e) {
-                    console.warn('[Editor] Failed to apply remote update:', e);
-                }
-            }
-        };
-
-        const unsubscribe = onRemoteUpdate(handleRemote);
-        return unsubscribe;
-    }, [applyRemoteUpdate, onRemoteUpdate, user, notifyEdit]);
+        fetchDocument();
+    }, [id, isReady, applyUpdate]);
 
     const handleBack = () => {
+        saveNow();
         navigate('/documents');
     };
+
+    const handleRestore = async () => {
+        try {
+            const response = await syncApi.restore(id, versionNumber);
+            const postRestoreState = restoreToState(response.data.content);
+            setVersionNumber(response.data.version_number);
+
+            if (postRestoreState) {
+                broadcastRestore(postRestoreState, response.data.version_number);
+            }
+        } catch (err) {
+            console.error('[DocumentEditor] Restore failed:', err);
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Render
+    // ─────────────────────────────────────────────────────────────
 
     if (loading) {
         return (
@@ -139,10 +145,7 @@ export default function DocumentEditor() {
                         </svg>
                     </div>
                     <p className="text-zinc-400 mb-4">{error}</p>
-                    <button
-                        onClick={handleBack}
-                        className="px-4 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
-                    >
+                    <button onClick={handleBack} className="px-4 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors">
                         Back to Documents
                     </button>
                 </div>
@@ -170,22 +173,10 @@ export default function DocumentEditor() {
                                 <h1 className="text-xl font-semibold text-white">
                                     {document?.title || 'Untitled Document'}
                                 </h1>
-                                <div className="flex items-center gap-2 text-xs text-zinc-500">
-                                    <span>
-                                        {saveStatus === 'saved' && '✓ Saved'}
-                                        {saveStatus === 'saving' && 'Saving...'}
-                                        {saveStatus === 'error' && '⚠ Error saving'}
-                                    </span>
-                                    <ConnectionStatus 
-                                        state={connectionState} 
-                                        reconnectAttempts={reconnectAttempts}
-                                        onReconnect={reconnect}
-                                    />
-                                </div>
+                                <ConnectionStatus state={connectionState} reconnectAttempts={reconnectAttempts} onReconnect={reconnect} />
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
-                            {/* Share Button - only for owner */}
                             {document?.user_id === user?.id && (
                                 <button
                                     onClick={() => setShowShareModal(true)}
@@ -197,27 +188,24 @@ export default function DocumentEditor() {
                                     Share
                                 </button>
                             )}
+                            <button
+                                onClick={handleRestore}
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                            >
+                                Restore version
+                            </button>
                             <ActiveUsers users={activeUsers} currentUserId={user?.id} />
                         </div>
                     </div>
                 </div>
             </header>
 
-            {/* Notifications */}
-            <Notifications 
-                notifications={notifications} 
-                onDismiss={dismissNotification} 
-            />
+            <Notifications notifications={notifications} onDismiss={dismissNotification} />
 
-            {/* Share Modal */}
-            <ShareModal
-                documentId={id}
-                isOpen={showShareModal}
-                onClose={() => setShowShareModal(false)}
-            />
+            <ShareModal documentId={id} isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
 
             {/* Disconnection Banner */}
-            {connectionState === ConnectionState.DISCONNECTED && reconnectAttempts >= 5 && (
+            {connectionState === ConnectionState.DISCONNECTED && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS && (
                 <div className="bg-red-900/50 border-b border-red-800 px-4 py-3">
                     <div className="max-w-5xl mx-auto flex items-center justify-between">
                         <div className="flex items-center gap-2 text-red-200">
@@ -226,10 +214,7 @@ export default function DocumentEditor() {
                             </svg>
                             <span className="text-sm">Connection lost. Changes may not sync with other users.</span>
                         </div>
-                        <button
-                            onClick={reconnect}
-                            className="px-3 py-1 text-sm bg-red-800 hover:bg-red-700 text-white rounded transition-colors"
-                        >
+                        <button onClick={reconnect} className="px-3 py-1 text-sm bg-red-800 hover:bg-red-700 text-white rounded transition-colors">
                             Reconnect
                         </button>
                     </div>
@@ -238,12 +223,8 @@ export default function DocumentEditor() {
 
             {/* Editor */}
             <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {yjsReady && ydoc ? (
-                    <Editor
-                        ydoc={ydoc}
-                        user={user}
-                        activeUsers={activeUsers}
-                    />
+                {isReady && ydoc ? (
+                    <Editor ydoc={ydoc} user={user} activeUsers={activeUsers} />
                 ) : (
                     <div className="flex items-center justify-center h-64 bg-zinc-900 rounded-lg">
                         <div className="text-center">
@@ -257,13 +238,12 @@ export default function DocumentEditor() {
     );
 }
 
-/**
- * Connection Status Indicator Component
- */
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 function ConnectionStatus({ state, reconnectAttempts, onReconnect }) {
     if (state === ConnectionState.CONNECTED) {
         return (
-            <span className="flex items-center gap-1 text-green-500">
+            <span className="flex items-center gap-1 text-xs text-green-500">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
                 Connected
             </span>
@@ -272,7 +252,7 @@ function ConnectionStatus({ state, reconnectAttempts, onReconnect }) {
 
     if (state === ConnectionState.CONNECTING) {
         return (
-            <span className="flex items-center gap-1 text-amber-500">
+            <span className="flex items-center gap-1 text-xs text-amber-500">
                 <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
                 Connecting...
             </span>
@@ -281,19 +261,15 @@ function ConnectionStatus({ state, reconnectAttempts, onReconnect }) {
 
     if (state === ConnectionState.RECONNECTING) {
         return (
-            <span className="flex items-center gap-1 text-amber-500">
+            <span className="flex items-center gap-1 text-xs text-amber-500">
                 <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
                 Reconnecting ({reconnectAttempts}/5)...
             </span>
         );
     }
 
-    // Disconnected
     return (
-        <button 
-            onClick={onReconnect}
-            className="flex items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
-        >
+        <button onClick={onReconnect} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors">
             <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
             Disconnected - Click to retry
         </button>

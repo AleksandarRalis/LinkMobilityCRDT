@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\DocumentUpdated;
 use App\Http\Controllers\Controller;
 use App\Services\DocumentService;
 use App\Services\DocumentReconstructionService;
@@ -14,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 class DocumentSyncController extends Controller
 {
     private const SNAPSHOT_UPDATE_THRESHOLD = 50; // Create snapshot every 50 updates
-    private const SNAPSHOT_TIME_THRESHOLD = 30;   // Or every 30 seconds
+    private const SNAPSHOT_TIME_THRESHOLD = 10;   // Or every 10 seconds
 
     public function __construct(
         protected DocumentService $documentService,
@@ -29,7 +28,7 @@ class DocumentSyncController extends Controller
     {
         $validated = $request->validate([
             'content' => 'required|string',
-            'update_count' => 'required|integer|min:1',
+            'update_count' => 'required|integer',
         ]);
 
         // Verify access
@@ -40,7 +39,7 @@ class DocumentSyncController extends Controller
 
         // Check if we should create a snapshot
         $shouldSnapshot = $this->shouldCreateSnapshot($id, $validated['update_count']);
-
+        
         if ($shouldSnapshot) {
             // Refresh document to get updated content
             $document->refresh();
@@ -67,7 +66,7 @@ class DocumentSyncController extends Controller
             return true;
         }
 
-        // Check time threshold (30 seconds since last snapshot)
+        // Check time threshold (10 seconds since last snapshot)
         if ($lastSnapshotTime === null) {
             Cache::put($cacheKey, now()->timestamp, 3600);
             return false;
@@ -120,23 +119,17 @@ class DocumentSyncController extends Controller
             'version_number' => 'required|integer|min:1',
         ]);
 
-        $this->documentService->restoreToVersion($id, $validated['version_number']);
+        $versionNumber = $this->documentService->restoreToVersion($id, $validated['version_number'] -1);
 
         // Get updated document
         $result = $this->documentService->getDocumentWithContent($id);
         $user = Auth::user();
 
-        // Broadcast the restored content to all clients
-        broadcast(new DocumentUpdated(
-            documentId: $id,
-            userId: $user->id,
-            userName: $user->name,
-            content: $result['content'] ?? '',
-        ));
 
         return response()->json([
             'message' => 'Document restored',
             'content' => $result['content'],
+            'version_number' => $versionNumber,
         ]);
     }
 }
