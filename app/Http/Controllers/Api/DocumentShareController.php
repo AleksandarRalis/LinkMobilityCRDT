@@ -20,14 +20,12 @@ class DocumentShareController extends Controller
     {
         $request->validate([
             'email' => 'required|email',
-            'permission' => 'in:view,edit',
         ]);
 
         try {
             $result = $this->shareService->shareWithEmail(
                 $id,
-                $request->email,
-                $request->permission ?? 'edit'
+                $request->email
             );
 
             return response()->json([

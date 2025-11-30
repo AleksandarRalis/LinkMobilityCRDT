@@ -3,7 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\DocumentShareController;
-use App\Http\Controllers\Api\DocumentSyncController;
+use App\Http\Controllers\Api\DocumentVersionController;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
@@ -54,11 +54,11 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/documents/{id}', [DocumentController::class, 'show']);
 
     // Document Sync (Yjs)
-    Route::post('/documents/{id}/save', [DocumentSyncController::class, 'save']);
-    Route::post('/documents/{id}/snapshot', [DocumentSyncController::class, 'createSnapshot']);
-    Route::get('/documents/{id}/versions', [DocumentSyncController::class, 'versions']);
-    Route::get('/documents/{id}/versions/{versionNumber}', [DocumentSyncController::class, 'previewVersion']);
-    Route::post('/documents/{id}/restore', [DocumentSyncController::class, 'restore']);
+    Route::post('/documents/{id}/save', [DocumentVersionController::class, 'save']);
+    Route::post('/documents/{id}/snapshot', [DocumentVersionController::class, 'createSnapshot']);
+    Route::get('/documents/{id}/versions', [DocumentVersionController::class, 'versions']);
+    Route::get('/documents/{id}/versions/{versionNumber}', [DocumentVersionController::class, 'previewVersion']);
+    Route::post('/documents/{id}/restore', [DocumentVersionController::class, 'restore']);
 
     // Document Sharing
     Route::post('/documents/{id}/share', [DocumentShareController::class, 'share']);

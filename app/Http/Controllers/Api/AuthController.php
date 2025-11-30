@@ -5,18 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Models\User;
 use App\Services\AuthService;
+use App\Services\TokenCookieService;
 use Illuminate\Http\JsonResponse;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
-use Symfony\Component\HttpFoundation\Cookie;
+use Symfony\Component\HttpFoundation\Response;
 
 class AuthController extends Controller
 {
-    private const TOKEN_COOKIE_NAME = 'token';
-    private const TOKEN_EXPIRY_MINUTES = 60 * 24 * 7; // 7 days
-
     public function __construct(
-        protected AuthService $authService
+        private readonly AuthService $authService,
+        private readonly TokenCookieService $tokenCookieService,
     ) {}
 
     /**
@@ -26,7 +26,12 @@ class AuthController extends Controller
     {
         $result = $this->authService->register($request->validated());
 
-        return $this->respondWithToken($result['token'], $result['user'], 'User registered successfully', 201);
+        return $this->respondWithToken(
+            $result['token'],
+            $result['user'],
+            'User registered successfully',
+            Response::HTTP_CREATED
+        );
     }
 
     /**
@@ -49,13 +54,12 @@ class AuthController extends Controller
 
             return $this->respondWithToken($result['token'], $result['user'], 'Token refreshed successfully');
         } catch (JWTException $e) {
-            // Clear the invalid cookie
-            $cookie = $this->createExpiredCookie();
-
             return response()->json([
                 'message' => 'Could not refresh token',
                 'error' => $e->getMessage(),
-            ], 401)->withCookie($cookie);
+            ], Response::HTTP_UNAUTHORIZED)->withCookie(
+                $this->tokenCookieService->createExpiredCookie()
+            );
         }
     }
 
@@ -68,7 +72,7 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Successfully logged out',
-        ])->withCookie($this->createExpiredCookie());
+        ])->withCookie($this->tokenCookieService->createExpiredCookie());
     }
 
     /**
@@ -86,34 +90,17 @@ class AuthController extends Controller
     /**
      * Create response with HTTP-only cookie containing the token.
      */
-    private function respondWithToken(string $token, $user, string $message, int $status = 200): JsonResponse
-    {
-        $cookie = Cookie::create(self::TOKEN_COOKIE_NAME)
-            ->withValue($token)
-            ->withExpires(time() + (self::TOKEN_EXPIRY_MINUTES * 60))
-            ->withPath('/')
-            ->withHttpOnly(true)
-            ->withSecure(config('app.env') === 'production')
-            ->withSameSite('Lax');
-
+    private function respondWithToken(
+        string $token,
+        User $user,
+        string $message,
+        int $status = Response::HTTP_OK
+    ): JsonResponse {
         return response()->json([
             'message' => $message,
             'user' => $user,
-        ], $status)->withCookie($cookie);
-    }
-
-    /**
-     * Create an expired cookie to clear the token.
-     */
-    private function createExpiredCookie(): Cookie
-    {
-        return Cookie::create(self::TOKEN_COOKIE_NAME)
-            ->withValue('')
-            ->withExpires(time() - 3600)
-            ->withPath('/')
-            ->withHttpOnly(true)
-            ->withSecure(config('app.env') === 'production')
-            ->withSameSite('Lax');
+        ], $status)->withCookie(
+            $this->tokenCookieService->createTokenCookie($token)
+        );
     }
 }
-

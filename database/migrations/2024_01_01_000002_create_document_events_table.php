@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('document_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->enum('event_type', ['update', 'snapshot']);
+            $table->enum('event_type', ['update', 'snapshot', 'restore']);
             $table->longText('content'); // Yjs update data (base64 encoded)
             $table->timestamps();
 

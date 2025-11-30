@@ -12,14 +12,6 @@ class UserRepository implements UserRepositoryInterface
     ) {}
 
     /**
-     * Find a user by ID.
-     */
-    public function findById(int $id): ?User
-    {
-        return $this->model->find($id);
-    }
-
-    /**
      * Find a user by email.
      */
     public function findByEmail(string $email): ?User

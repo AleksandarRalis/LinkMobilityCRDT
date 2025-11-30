@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Document\CreateDocumentRequest;
 use App\Services\DocumentService;
+use App\Services\DocumentVersionService;
 use Illuminate\Http\JsonResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class DocumentController extends Controller
 {
     public function __construct(
-        protected DocumentService $documentService
+        protected DocumentService $documentService,
+        protected DocumentVersionService $versionService
     ) {}
 
     /**
@@ -30,11 +33,11 @@ class DocumentController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $result = $this->documentService->getDocumentWithContent($id);
+        $result = $this->versionService->getDocumentWithContent($id);
 
         return response()->json([
             'document' => $result['document'],
-            'content' => $result['content'],    
+            'content' => $result['content'],
             'version_number' => $result['version_number'],
         ]);
     }
@@ -49,7 +52,6 @@ class DocumentController extends Controller
         return response()->json([
             'message' => 'Document created successfully',
             'document' => $document,
-        ], 201);
+        ], Response::HTTP_CREATED);
     }
 }
-

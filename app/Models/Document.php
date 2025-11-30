@@ -37,7 +37,6 @@ class Document extends Model
     public function sharedWith(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'document_shares')
-            ->withPivot('permission')
             ->withTimestamps();
     }
 
@@ -55,21 +54,6 @@ class Document extends Model
     public function hasAccess(User $user): bool
     {
         return $this->user_id === $user->id || $this->sharedWith()->where('user_id', $user->id)->exists();
-    }
-
-    /**
-     * Check if a user can edit this document.
-     */
-    public function canEdit(User $user): bool
-    {
-        if ($this->user_id === $user->id) {
-            return true;
-        }
-
-        return $this->sharedWith()
-            ->where('user_id', $user->id)
-            ->wherePivot('permission', 'edit')
-            ->exists();
     }
 
     /**

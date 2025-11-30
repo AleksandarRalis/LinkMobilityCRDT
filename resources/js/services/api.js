@@ -25,8 +25,8 @@ export const documentApi = {
  * Document Sharing API calls
  */
 export const shareApi = {
-    share: (documentId, email, permission = 'edit') => 
-        axios.post(`/documents/${documentId}/share`, { email, permission }),
+    share: (documentId, email) => 
+        axios.post(`/documents/${documentId}/share`, { email }),
     removeShare: (documentId, userId) => 
         axios.delete(`/documents/${documentId}/share/${userId}`),
     getShares: (documentId) => 

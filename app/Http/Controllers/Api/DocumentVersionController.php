@@ -3,21 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\DocumentService;
-use App\Services\DocumentReconstructionService;
+use App\Services\DocumentVersionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 
-class DocumentSyncController extends Controller
+class DocumentVersionController extends Controller
 {
-    private const SNAPSHOT_UPDATE_THRESHOLD = 50; // Create snapshot every 50 updates
-    private const SNAPSHOT_TIME_THRESHOLD = 10;   // Or every 10 seconds
+    private const SNAPSHOT_UPDATE_THRESHOLD = 50;
+    private const SNAPSHOT_TIME_THRESHOLD = 10;
 
     public function __construct(
-        protected DocumentService $documentService,
-        protected DocumentReconstructionService $reconstructionService
+        protected DocumentVersionService $versionService
     ) {}
 
     /**
@@ -31,19 +28,15 @@ class DocumentSyncController extends Controller
             'update_count' => 'required|integer',
         ]);
 
-        // Verify access
-        $document = $this->documentService->getDocument($id);
+        $document = $this->versionService->getDocument($id);
 
-        // Save the event
-        $this->reconstructionService->saveEvent($document, $validated['content'], 'update');
+        $this->versionService->saveEvent($document, $validated['content'], 'update');
 
-        // Check if we should create a snapshot
         $shouldSnapshot = $this->shouldCreateSnapshot($id, $validated['update_count']);
-        
+
         if ($shouldSnapshot) {
-            // Refresh document to get updated content
             $document->refresh();
-            $this->reconstructionService->createVersionSnapshot($document);
+            $this->versionService->createVersionSnapshot($document);
             $this->resetSnapshotCounters($id);
         }
 
@@ -61,12 +54,10 @@ class DocumentSyncController extends Controller
         $cacheKey = "doc_{$documentId}_last_snapshot";
         $lastSnapshotTime = Cache::get($cacheKey);
 
-        // Check update count threshold
         if ($updateCount >= self::SNAPSHOT_UPDATE_THRESHOLD) {
             return true;
         }
 
-        // Check time threshold (10 seconds since last snapshot)
         if ($lastSnapshotTime === null) {
             Cache::put($cacheKey, now()->timestamp, 3600);
             return false;
@@ -90,7 +81,8 @@ class DocumentSyncController extends Controller
      */
     public function createSnapshot(int $id): JsonResponse
     {
-        $this->documentService->createSnapshot($id);
+        $document = $this->versionService->getDocument($id);
+        $this->versionService->createVersionSnapshot($document);
         $this->resetSnapshotCounters($id);
 
         return response()->json([
@@ -100,18 +92,18 @@ class DocumentSyncController extends Controller
 
     /**
      * Get version history (paginated, 10 per page).
-     * Page number is automatically read from request query parameter.
      */
-    public function versions(Request $request, int $id): JsonResponse
+    public function versions(int $id): JsonResponse
     {
-        $result = $this->documentService->getVersionHistory($id);
+        $document = $this->versionService->getDocument($id);
+        $result = $this->versionService->getVersionHistory($document);
 
         return response()->json([
             'versions' => $result['data'],
             'pagination' => [
                 'total' => $result['total'],
                 'page' => $result['page'],
-                'per_page' => 10,
+                'per_page' => $result['per_page'],
                 'last_page' => $result['last_page'],
             ],
         ]);
@@ -123,7 +115,8 @@ class DocumentSyncController extends Controller
     public function previewVersion(int $id, int $versionNumber): JsonResponse
     {
         try {
-            $result = $this->documentService->getVersionContent($id, $versionNumber);
+            $document = $this->versionService->getDocument($id);
+            $result = $this->versionService->getVersionContent($document, $versionNumber);
 
             return response()->json([
                 'content' => $result['content'],
@@ -147,18 +140,15 @@ class DocumentSyncController extends Controller
             'version_number' => 'required|integer|min:1',
         ]);
 
-        $versionNumber = $this->documentService->restoreToVersion($id, $validated['version_number']);
+        $document = $this->versionService->getDocument($id);
+        $this->versionService->restoreToVersion($document, $validated['version_number']);
 
-        // Get updated document
-        $result = $this->documentService->getDocumentWithContent($id);
-        $user = Auth::user();
-
+        $document->refresh();
 
         return response()->json([
             'message' => 'Document restored',
-            'content' => $result['content'],
-            'version_number' => $versionNumber,
+            'content' => $document->content,
+            'version_number' => $validated['version_number'],
         ]);
     }
 }
-

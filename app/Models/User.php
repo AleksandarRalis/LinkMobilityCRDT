@@ -63,7 +63,6 @@ class User extends Authenticatable implements JWTSubject
     public function sharedDocuments(): BelongsToMany
     {
         return $this->belongsToMany(Document::class, 'document_shares')
-            ->withPivot('permission')
             ->withTimestamps();
     }
 

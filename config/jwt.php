@@ -266,14 +266,50 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Cookie key name
+    | Cookie Configuration
     |--------------------------------------------------------------------------
     |
-    | Specify the cookie key name that you would like to use for the cookie token.
+    | Configure the cookie settings for JWT token storage.
     |
     */
 
-    'cookie_key_name' => 'token',
+    'cookie' => [
+        /*
+        | Cookie key name for the token.
+        */
+        'name' => env('JWT_COOKIE_NAME', 'token'),
+
+        /*
+        | Cookie expiry time in minutes (default: 7 days).
+        */
+        'expiry_minutes' => (int) env('JWT_COOKIE_EXPIRY_MINUTES', 60 * 24 * 7),
+
+        /*
+        | Cookie path.
+        */
+        'path' => env('JWT_COOKIE_PATH', '/'),
+
+        /*
+        | Cookie domain (null for current domain).
+        */
+        'domain' => env('JWT_COOKIE_DOMAIN', null),
+
+        /*
+        | Whether the cookie should only be sent over HTTPS.
+        | Set to true in production environments.
+        */
+        'secure' => env('JWT_COOKIE_SECURE', false),
+
+        /*
+        | HTTP-only flag to prevent JavaScript access.
+        */
+        'http_only' => env('JWT_COOKIE_HTTP_ONLY', true),
+
+        /*
+        | SameSite cookie attribute (Lax, Strict, or None).
+        */
+        'same_site' => env('JWT_COOKIE_SAME_SITE', 'Lax'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

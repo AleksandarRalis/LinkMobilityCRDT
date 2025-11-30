@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->foreignId('document_id')->constrained()->onDelete('cascade');
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->enum('permission', ['view', 'edit'])->default('edit');
             $table->timestamps();
 
             // Prevent duplicate shares

@@ -6,15 +6,16 @@ use App\Models\User;
 use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenExpiredException;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenInvalidException;
-use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
+use PHPOpenSourceSaver\JWTAuth\JWTAuth;
 
 class AuthService
 {
     public function __construct(
-        protected UserRepositoryInterface $userRepository
+        private readonly UserRepositoryInterface $userRepository,
+        private readonly JWTAuth $jwt,
     ) {}
 
     /**
@@ -28,12 +29,9 @@ class AuthService
             'password' => Hash::make($data['password']),
         ]);
 
-        $token = JWTAuth::fromUser($user);
+        $token = $this->jwt->fromUser($user);
 
-        return [
-            'user' => $user,
-            'token' => $token,
-        ];
+        return $this->tokenResponse($user, $token);
     }
 
     /**
@@ -41,7 +39,7 @@ class AuthService
      */
     public function login(array $credentials): array
     {
-        $token = JWTAuth::attempt($credentials);
+        $token = $this->jwt->attempt($credentials);
 
         if (!$token) {
             throw ValidationException::withMessages([
@@ -49,12 +47,9 @@ class AuthService
             ]);
         }
 
-        $user = JWTAuth::user();
+        $user = $this->jwt->user();
 
-        return [
-            'user' => $user,
-            'token' => $token,
-        ];
+        return $this->tokenResponse($user, $token);
     }
 
     /**
@@ -64,19 +59,14 @@ class AuthService
     public function refresh(): array
     {
         try {
-            $newToken = JWTAuth::refresh(JWTAuth::getToken());
-            $user = JWTAuth::setToken($newToken)->toUser();
+            $newToken = $this->jwt->refresh($this->jwt->getToken());
+            $user = $this->jwt->setToken($newToken)->toUser();
 
-            return [
-                'user' => $user,
-                'token' => $newToken,
-            ];
-        } catch (TokenExpiredException $e) {
+            return $this->tokenResponse($user, $newToken);
+        } catch (TokenExpiredException) {
             throw new JWTException('Token has expired and cannot be refreshed');
-        } catch (TokenInvalidException $e) {
+        } catch (TokenInvalidException) {
             throw new JWTException('Token is invalid');
-        } catch (JWTException $e) {
-            throw $e;
         }
     }
 
@@ -86,18 +76,38 @@ class AuthService
     public function logout(): void
     {
         try {
-            JWTAuth::invalidate(JWTAuth::getToken());
-        } catch (JWTException $e) {
+            $this->jwt->invalidate($this->jwt->getToken());
+        } catch (JWTException) {
             // Token might already be invalid, that's ok
         }
     }
 
     /**
      * Get the authenticated user.
+     *
+     * @throws JWTException
      */
     public function me(): User
     {
-        return JWTAuth::user();
+        $user = $this->jwt->user();
+
+        if (!$user instanceof User) {
+            throw new JWTException('User not authenticated');
+        }
+
+        return $user;
+    }
+
+    /**
+     * Create a standardized token response array.
+     *
+     * @return array{user: User, token: string}
+     */
+    private function tokenResponse(User $user, string $token): array
+    {
+        return [
+            'user' => $user,
+            'token' => $token,
+        ];
     }
 }
-

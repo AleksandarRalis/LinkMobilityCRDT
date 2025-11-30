@@ -9,6 +9,8 @@ use App\Repositories\Interfaces\DocumentShareRepositoryInterface;
 use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class DocumentShareService
 {
@@ -20,42 +22,34 @@ class DocumentShareService
 
     /**
      * Share a document with a user by email.
+     * Only the document owner can share.
      */
-    public function shareWithEmail(int $documentId, string $email, string $permission = 'edit'): array
+    public function shareWithEmail(int $documentId, string $email): array
     {
         $document = $this->documentRepository->findById($documentId);
-        
+
         if (!$document) {
-            throw new \Exception('Document not found');
+            throw new NotFoundHttpException('Document not found');
         }
 
-        // Only owner can share
         if ($document->user_id !== Auth::id()) {
-            throw new \Exception('You do not have permission to share this document');
+            throw new AccessDeniedHttpException('Only the document owner can share this document');
         }
 
-        $user = $this->userRepository->findByEmail($email);
-        
-        if (!$user) {
-            throw new \Exception('User not found with this email');
-        }
+        $user = $this->userRepository->findByEmail($email)
+            ?? throw new NotFoundHttpException('User not found with this email');
 
-        // Can't share with yourself
         if ($user->id === Auth::id()) {
-            throw new \Exception('You cannot share a document with yourself');
+            throw new \InvalidArgumentException('You cannot share a document with yourself');
         }
 
-        // Check if already shared
-        $existingShare = $this->shareRepository->findByDocumentAndUser($documentId, $user->id);
-        
-        if ($existingShare) {
-            throw new \Exception('Document is already shared with this user');
+        if ($document->sharedWith()->where('user_id', $user->id)->exists()) {
+            throw new \InvalidArgumentException('Document is already shared with this user');
         }
 
         $share = $this->shareRepository->create([
             'document_id' => $documentId,
             'user_id' => $user->id,
-            'permission' => $permission,
         ]);
 
         return [

@@ -8,20 +8,47 @@ use App\Repositories\Interfaces\DocumentVersionRepositoryInterface;
 use App\Repositories\Interfaces\DocumentRepositoryInterface;
 use Illuminate\Support\Facades\Auth;
 
-class DocumentReconstructionService
+class DocumentVersionService
 {
     public function __construct(
+        protected DocumentService $documentService,
         protected DocumentRepositoryInterface $documentRepository,
         protected DocumentEventRepositoryInterface $documentEventRepository,
         protected DocumentVersionRepositoryInterface $documentVersionRepository
     ) {}
 
     /**
-     * Get document content for initial load.
+     * Get a specific document by ID with access check.
+     * Delegates to DocumentService to avoid code duplication.
      */
-    public function getDocumentContent(Document $document): ?string
+    public function getDocument(int $id): Document
     {
-        return $document->content;
+        return $this->documentService->getDocument($id);
+    }
+
+    /**
+     * Get document with content for initial load.
+     */
+    public function getDocumentWithContent(int $id): array
+    {
+        $document = $this->getDocument($id);
+        $latestVersion = $this->documentVersionRepository->getLatestByDocumentId($document->id);
+
+        return [
+            'document' => $document,
+            'content' => $document->content,
+            'version_number' => $latestVersion?->version_number ?? 1,
+        ];
+    }
+
+    /**
+     * Get the latest version number for a document.
+     */
+    public function getLatestVersionNumber(Document $document): int
+    {
+        return $this->documentVersionRepository
+            ->getLatestByDocumentId($document->id)
+            ?->version_number ?? 1;
     }
 
     /**
@@ -29,7 +56,6 @@ class DocumentReconstructionService
      */
     public function saveEvent(Document $document, string $content, string $eventType = 'update'): void
     {
-        // Save the event
         $this->documentEventRepository->create([
             'document_id' => $document->id,
             'user_id' => Auth::id(),
@@ -37,7 +63,6 @@ class DocumentReconstructionService
             'content' => $content,
         ]);
 
-        // Update the document's current snapshot
         $this->documentRepository->updateContent($document, $content);
     }
 
@@ -50,11 +75,9 @@ class DocumentReconstructionService
             return;
         }
 
-        // Get current version number
         $latestVersion = $this->documentVersionRepository->getLatestByDocumentId($document->id);
         $newVersionNumber = $latestVersion ? $latestVersion->version_number + 1 : 1;
 
-        // Create new version
         $this->documentVersionRepository->create([
             'document_id' => $document->id,
             'user_id' => Auth::id(),
@@ -65,7 +88,6 @@ class DocumentReconstructionService
 
     /**
      * Get version history for a document (paginated, 10 per page).
-     * Page number is automatically read from request.
      */
     public function getVersionHistory(Document $document): array
     {
@@ -88,7 +110,6 @@ class DocumentReconstructionService
 
     /**
      * Get a version by document ID and version number.
-     * Throws exception if version not found.
      */
     private function getVersion(Document $document, int $versionNumber)
     {
@@ -126,16 +147,13 @@ class DocumentReconstructionService
     {
         $version = $this->getVersion($document, $versionNumber);
 
-        // Update document content to the version's content
         $this->documentRepository->updateContent($document, $version->content);
 
-        // Save as a new event (for audit trail)
         $this->documentEventRepository->create([
             'document_id' => $document->id,
             'user_id' => Auth::id(),
-            'event_type' => 'snapshot',
+            'event_type' => 'restore',
             'content' => $version->content,
         ]);
     }
 }
-
