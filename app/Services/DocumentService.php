@@ -11,7 +11,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 class DocumentService
 {
     public function __construct(
-        protected DocumentRepositoryInterface $documentRepository
+        private readonly DocumentRepositoryInterface $documentRepository
     ) {}
 
     /**

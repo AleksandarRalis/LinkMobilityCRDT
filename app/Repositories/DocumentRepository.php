@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 class DocumentRepository implements DocumentRepositoryInterface
 {
     public function __construct(
-        protected Document $model
+        private readonly Document $model
     ) {}
 
     /**

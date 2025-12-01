@@ -106,12 +106,17 @@ export function useNotifications() {
         addNotification('leave', userName, 'left the document');
     }, [addNotification]);
 
+    const notifyRestore = useCallback((userName) => {
+        addNotification('restore', userName, 'restored a previous version');
+    }, [addNotification]);
+
     return {
         notifications,
         dismissNotification,
         notifyEdit,
         notifyJoin,
         notifyLeave,
+        notifyRestore,
     };
 }
 

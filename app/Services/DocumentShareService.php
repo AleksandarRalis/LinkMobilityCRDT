@@ -15,9 +15,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class DocumentShareService
 {
     public function __construct(
-        protected DocumentShareRepositoryInterface $shareRepository,
-        protected DocumentRepositoryInterface $documentRepository,
-        protected UserRepositoryInterface $userRepository
+        private readonly DocumentShareRepositoryInterface $shareRepository,
+        private readonly DocumentRepositoryInterface $documentRepository,
+        private readonly UserRepositoryInterface $userRepository
     ) {}
 
     /**
@@ -70,12 +70,12 @@ class DocumentShareService
         $document = $this->documentRepository->findById($documentId);
         
         if (!$document) {
-            throw new \Exception('Document not found');
+            throw new NotFoundHttpException('Document not found');
         }
 
         // Only owner can remove shares
         if ($document->user_id !== Auth::id()) {
-            throw new \Exception('You do not have permission to manage shares for this document');
+            throw new AccessDeniedHttpException('You do not have permission to manage shares for this document');
         }
 
         return $this->shareRepository->delete($documentId, $userId);
@@ -89,12 +89,12 @@ class DocumentShareService
         $document = $this->documentRepository->findById($documentId);
         
         if (!$document) {
-            throw new \Exception('Document not found');
+            throw new NotFoundHttpException('Document not found');
         }
 
         // Only owner can view shares
         if ($document->user_id !== Auth::id()) {
-            throw new \Exception('You do not have permission to view shares for this document');
+            throw new AccessDeniedHttpException('You do not have permission to view shares for this document');
         }
 
         return $this->shareRepository->getSharesForDocument($documentId);

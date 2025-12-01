@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
 class DocumentShareRepository implements DocumentShareRepositoryInterface
 {
     public function __construct(
-        protected DocumentShare $model
+        private readonly DocumentShare $model
     ) {}
 
     public function getSharesForDocument(int $documentId): Collection

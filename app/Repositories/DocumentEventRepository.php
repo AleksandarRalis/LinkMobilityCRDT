@@ -8,7 +8,7 @@ use App\Repositories\Interfaces\DocumentEventRepositoryInterface;
 class DocumentEventRepository implements DocumentEventRepositoryInterface
 {
     public function __construct(
-        protected DocumentEvent $model
+        private readonly DocumentEvent $model
     ) {}
 
     /**

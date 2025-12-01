@@ -30,7 +30,7 @@ export default function DocumentEditor() {
     const [previewVersionNumber, setPreviewVersionNumber] = useState(null);
 
     // Notifications
-    const { notifications, dismissNotification, notifyEdit, notifyJoin, notifyLeave } = useNotifications();
+    const { notifications, dismissNotification, notifyEdit, notifyJoin, notifyLeave, notifyRestore } = useNotifications();
 
     // Per-user debounce timers for edit notifications
     const notificationTimersRef = useRef(new Map());
@@ -77,9 +77,9 @@ export default function DocumentEditor() {
                 }
             }
             
-            if (data.userName) notifyEdit(`${data.userName} restored a previous version`);
+            if (data.userName) notifyRestore(`${data.userName}`);
         }
-    }, [applyUpdate, notifyEdit]);
+    }, [applyUpdate, notifyRestore]);
 
     // Document channel (networking)
     const {

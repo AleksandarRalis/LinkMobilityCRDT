@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\Auth;
 class DocumentVersionService
 {
     public function __construct(
-        protected DocumentService $documentService,
-        protected DocumentRepositoryInterface $documentRepository,
-        protected DocumentEventRepositoryInterface $documentEventRepository,
-        protected DocumentVersionRepositoryInterface $documentVersionRepository
+        private readonly DocumentService $documentService,
+        private readonly DocumentRepositoryInterface $documentRepository,
+        private readonly DocumentEventRepositoryInterface $documentEventRepository,
+        private readonly DocumentVersionRepositoryInterface $documentVersionRepository
     ) {}
 
     /**

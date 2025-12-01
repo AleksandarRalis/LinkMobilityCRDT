@@ -9,7 +9,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class DocumentVersionRepository implements DocumentVersionRepositoryInterface
 {
     public function __construct(
-        protected DocumentVersion $model
+        private readonly DocumentVersion $model
     ) {}
 
     /**
