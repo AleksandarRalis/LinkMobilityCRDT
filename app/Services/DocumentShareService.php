@@ -36,8 +36,11 @@ class DocumentShareService
             throw new AccessDeniedHttpException('Only the document owner can share this document');
         }
 
-        $user = $this->userRepository->findByEmail($email)
-            ?? throw new NotFoundHttpException('User not found with this email');
+        $user = $this->userRepository->findByEmail($email);
+        
+        if (!$user) {
+            throw new \InvalidArgumentException('User not found with this email');
+        }
 
         if ($user->id === Auth::id()) {
             throw new \InvalidArgumentException('You cannot share a document with yourself');

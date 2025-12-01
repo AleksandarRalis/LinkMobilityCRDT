@@ -1,59 +1,163 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# CollabDocs - Real-time Collaborative Document Editor
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A real-time collaborative document editor built with Laravel and React, featuring CRDT-based conflict resolution for seamless multi-user editing.
 
-## About Laravel
+![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?style=flat-square&logo=laravel)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)
+![PHP](https://img.shields.io/badge/PHP-8.2+-777BB4?style=flat-square&logo=php)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## ✨ Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Real-time Collaboration** - Multiple users can edit the same document simultaneously
+- **CRDT Conflict Resolution** - Uses Yjs for automatic conflict-free merging of changes
+- **Version History** - Browse and restore previous versions of documents
+- **Document Sharing** - Share documents with other users by email
+- **Live Presence** - See who's currently viewing/editing a document
+- **JWT Authentication** - Secure authentication with HTTP-only cookies
+- **Rich Text Editor** - Full-featured editor with formatting options (Tiptap)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## 🛠 Tech Stack
 
-## Learning Laravel
+**Backend:**
+- Laravel 12 (PHP 8.2+)
+- Laravel Reverb (WebSockets)
+- JWT Authentication
+- MySQL & Redis
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+**Frontend:**
+- React 19
+- Tiptap Editor
+- Yjs (CRDT)
+- Tailwind CSS 4
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## 🚀 Getting Started
 
-## Laravel Sponsors
+### Prerequisites
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- Git
 
-### Premium Partners
+> **Note:** The `.env` file is intentionally included in the repository for easy setup.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+### ⚠️ Port Conflicts
 
-## Contributing
+If you encounter errors during container startup due to ports already being in use (e.g., MySQL on 3306, Redis on 6379), you need to stop the local services occupying those ports:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Alternatively, you can modify the port mappings in `docker-compose.yml` to use different host ports.
 
-## Code of Conduct
+### Installation
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd LinkMobilityCRDT
+   ```
 
-## Security Vulnerabilities
+2. **Build and start Docker containers**
+   ```bash
+   ./vendor/bin/sail build
+   ./vendor/bin/sail up -d
+   ```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+3. **Install PHP dependencies**
+   ```bash
+   ./vendor/bin/sail composer install
+   ```
 
-## License
+4. **Run database migrations**
+   ```bash
+   ./vendor/bin/sail php artisan migrate
+   ```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+5. **Install Node.js dependencies**
+   ```bash
+   ./vendor/bin/sail npm install
+   ```
+
+6. **Start the Vite development server** (in a separate terminal)
+   ```bash
+   ./vendor/bin/sail npm run dev
+   ```
+
+7. **Start the WebSocket server** (in a separate terminal)
+   ```bash
+   ./vendor/bin/sail php artisan reverb:start
+   ```
+
+### Access the Application
+
+- **App:** http://localhost
+## 📖 Usage
+
+1. **Register** a new account or **Login** with existing credentials
+2. **Create** a new document from the dashboard
+3. **Share** documents with other users using their email address
+4. **Collaborate** in real-time - changes sync automatically
+5. **View history** to see previous versions and restore if needed
+
+## 🏗 Architecture
+
+```
+app/
+├── Http/
+│   ├── Controllers/Api/    # API endpoints
+│   └── Requests/           # Form validation
+├── Models/                 # Eloquent models
+├── Repositories/           # Data access layer
+│   └── Interfaces/         # Repository contracts
+├── Services/               # Business logic
+└── Providers/              # Service providers
+
+resources/js/
+├── components/             # React components
+├── contexts/               # React context providers
+├── hooks/                  # Custom React hooks
+├── pages/                  # Page components
+├── services/               # API service layer
+└── utils/                  # Utility functions
+```
+
+## 🔮 Future Improvements
+
+The following improvements were intentionally omitted to keep the codebase simple and avoid over-engineering for a demo project. However, they would be recommended for a production application:
+
+### Backend Architecture
+
+| Improvement | Description | Benefit |
+|-------------|-------------|---------|
+| **DTOs (Data Transfer Objects)** | Create dedicated DTO classes for data passed between layers (e.g., `CreateDocumentDTO`, `ShareDocumentDTO`) | Type safety, validation at boundaries, cleaner service signatures |
+| **API Resources** | Use Laravel's `JsonResource` classes for all API responses | Consistent JSON structure, transformation logic centralized, easier versioning |
+| **Enums for Database Columns** | Create PHP 8.1+ Enum for `event_type` column (`DocumentEventType::Update`, `::Snapshot`, `::Restore`) | Type safety, IDE autocompletion, prevents invalid values |
+| **Constants/Config Classes** | Move magic numbers to config files or constant classes (e.g., `SNAPSHOT_UPDATE_THRESHOLD`, `SAVE_DEBOUNCE_MS`) | Single source of truth, easier configuration |
+| **Action Classes** | Single-responsibility action classes for complex operations (e.g., `ShareDocumentAction`, `RestoreVersionAction`) | Testable, reusable, follows SRP |
+| **Laravel Policies** | Use policy classes for authorization instead of inline checks in services | Centralized authorization, cleaner code, reusable rules |
+| **Events & Listeners** | Dispatch events for significant actions (e.g., `DocumentShared`, `VersionRestored`) | Decoupling, async processing, audit logging |
+| **Query Objects/Scopes** | Extract complex queries into dedicated query classes or Eloquent scopes | Reusable queries, testable, cleaner repositories |
+
+### Testing & Documentation
+
+| Improvement | Description |
+|-------------|-------------|
+| **Feature Tests** | Comprehensive API endpoint testing with authentication flows |
+| **Unit Tests** | Service layer testing with mocked repositories |
+| **API Documentation** | OpenAPI/Swagger specification for API endpoints |
+| **PHPStan/Larastan** | Static analysis for type safety at level 8+ |
+
+### Infrastructure & Security
+
+| Improvement | Description |
+|-------------|-------------|
+| **Rate Limiting** | Throttle authentication endpoints to prevent brute force |
+| **Request Logging** | Structured logging for debugging and audit trails |
+| **Error Tracking** | Integration with Sentry or similar for production monitoring |
+| **Caching Layer** | Redis caching for frequently accessed documents |
+| **Queue Workers** | Offload heavy operations (snapshots, notifications) to background jobs |
+
+### Frontend
+
+| Improvement | Description |
+|-------------|-------------|
+| **TypeScript** | Add type safety to React components and hooks |
+| **Error Boundaries** | Graceful error handling at component level |
+
+> **Note:** The current implementation follows clean architecture principles (Controllers → Services → Repositories) with dependency injection, which provides a solid foundation for adding these improvements incrementally.
