@@ -21,6 +21,8 @@ export default function Editor({
     const editorRef = useRef(null);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [wordCount, setWordCount] = useState({ words: 0, characters: 0 });
+    // Force re-render when editor state changes (for toolbar active states)
+    const [, forceUpdate] = useState(0);
 
     const editor = useEditor({
         extensions: [
@@ -46,6 +48,10 @@ export default function Editor({
                 words: text.split(/\s+/).filter(Boolean).length,
                 characters: text.length,
             });
+        },
+        onTransaction: () => {
+            // Force re-render to update toolbar active states
+            forceUpdate(n => n + 1);
         },
     }, [ydoc, user]);
 
@@ -111,14 +117,6 @@ export default function Editor({
                             title="Strikethrough"
                         >
                             <StrikeIcon />
-                        </ToolbarButton>
-
-                        <ToolbarButton
-                            onClick={() => editor.chain().focus().toggleCode().run()}
-                            isActive={editor.isActive('code')}
-                            title="Inline Code"
-                        >
-                            <InlineCodeIcon />
                         </ToolbarButton>
                     </ToolbarGroup>
 
@@ -253,6 +251,8 @@ function ToolbarGroup({ children }) {
 function ToolbarButton({ onClick, isActive, disabled, title, children }) {
     return (
         <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onClick}
             disabled={disabled}
             title={title}
@@ -298,14 +298,6 @@ function StrikeIcon() {
     return (
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M5 12h14M12 5c-2.5 0-4 1.5-4 3s1.5 2 4 2m0 4c2.5 0 4 1 4 3s-1.5 3-4 3" />
-        </svg>
-    );
-}
-
-function InlineCodeIcon() {
-    return (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l-3 3 3 3m8-6l3 3-3 3" />
         </svg>
     );
 }

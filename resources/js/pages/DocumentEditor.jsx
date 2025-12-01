@@ -67,6 +67,16 @@ export default function DocumentEditor() {
         if (data.content) {
             applyUpdate(data.content);
             if (data.versionNumber) setVersionNumber(data.versionNumber);
+            // Clear any pending "made a change" notification for this user
+            // since restore notification is more specific
+            if (data.userId) {
+                const existingTimer = notificationTimersRef.current.get(data.userId);
+                if (existingTimer) {
+                    clearTimeout(existingTimer);
+                    notificationTimersRef.current.delete(data.userId);
+                }
+            }
+            
             if (data.userName) notifyEdit(`${data.userName} restored a previous version`);
         }
     }, [applyUpdate, notifyEdit]);

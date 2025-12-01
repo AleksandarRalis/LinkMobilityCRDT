@@ -65,17 +65,17 @@ export default function ActiveUsers({ users = [], currentUserId }) {
                             
                             {/* Tooltip */}
                             <div className="
-                                absolute bottom-full left-1/2 -translate-x-1/2 mb-2 
+                                absolute top-full left-1/2 -translate-x-1/2 mt-2 
                                 px-2.5 py-1.5 bg-zinc-800 text-white text-xs rounded-lg
                                 opacity-0 group-hover:opacity-100 transition-all duration-200
                                 whitespace-nowrap pointer-events-none shadow-lg
                                 border border-zinc-700
-                                -translate-y-1 group-hover:translate-y-0
+                                translate-y-1 group-hover:translate-y-0
                             ">
                                 {user.name}
                                 {isYou && <span className="text-amber-500 ml-1">(you)</span>}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
-                                    <div className="border-4 border-transparent border-t-zinc-800"></div>
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-px">
+                                    <div className="border-4 border-transparent border-b-zinc-800"></div>
                                 </div>
                             </div>
                         </div>
