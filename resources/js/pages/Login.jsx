@@ -14,6 +14,17 @@ export default function Login() {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Check for invalid token flag (set in bootstrap.js before redirect)
+    const [showInvalidToken, setShowInvalidToken] = useState(() => {
+        return sessionStorage.getItem('auth_invalid_token') === 'true';
+    });
+
+    // Clear the flag
+    const dismissInvalidToken = () => {
+        setShowInvalidToken(false);
+        sessionStorage.removeItem('auth_invalid_token');
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -43,6 +54,27 @@ export default function Login() {
                     </h1>
                     <p className="text-zinc-400 mt-2">Real-time collaborative editing</p>
                 </div>
+
+                {/* Invalid Token Notice */}
+                {showInvalidToken && (
+                    <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3">
+                        <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v.01M12 12v-2m0-4a8 8 0 100 16 8 8 0 000-16z" />
+                        </svg>
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-red-200">Invalid Token</p>
+                            <p className="text-sm text-red-300/80 mt-0.5">Your authentication token is invalid or expired. Please sign in again.</p>
+                        </div>
+                        <button 
+                            onClick={dismissInvalidToken}
+                            className="text-red-500/70 hover:text-red-500 transition-colors"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
 
                 {/* Login Form */}
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 shadow-2xl">

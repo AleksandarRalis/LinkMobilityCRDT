@@ -27,6 +27,7 @@ export function AuthProvider({ children }) {
     const login = async (email, password) => {
         const response = await authApi.login({ email, password });
         setUser(response.data.user);
+        sessionStorage.setItem('was_authenticated', 'true');
         return response.data;
     };
 
@@ -38,6 +39,7 @@ export function AuthProvider({ children }) {
             password_confirmation: passwordConfirmation,
         });
         setUser(response.data.user);
+        sessionStorage.setItem('was_authenticated', 'true');
         return response.data;
     };
 
@@ -48,6 +50,7 @@ export function AuthProvider({ children }) {
             // Ignore logout errors
         } finally {
             setUser(null);
+            sessionStorage.removeItem('was_authenticated');
         }
     };
 

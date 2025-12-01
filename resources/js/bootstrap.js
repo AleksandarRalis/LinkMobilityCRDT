@@ -66,11 +66,16 @@ axios.interceptors.response.use(
             } catch (refreshError) {
                 processQueue(refreshError);
                 
-                // Refresh failed - redirect to login
+                // Refresh failed - redirect to login with session expired message
                 const isAuthPage = window.location.pathname === '/login' 
                     || window.location.pathname === '/register';
                 
                 if (!isAuthPage) {
+                    // Only show "session expired" if user was previously logged in this session
+                    if (sessionStorage.getItem('was_authenticated')) {
+                        sessionStorage.setItem('auth_invalid_token', 'true');
+                    }
+                    sessionStorage.removeItem('was_authenticated');
                     window.location.href = '/login';
                 }
                 

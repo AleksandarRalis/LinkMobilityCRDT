@@ -3,13 +3,9 @@ import { syncApi } from '../services/api';
 
 export const ConnectionState = {
     DISCONNECTED: 'disconnected',
-    CONNECTING: 'connecting',
     CONNECTED: 'connected',
-    RECONNECTING: 'reconnecting',
 };
 
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY_BASE = 1000;
 const SAVE_DEBOUNCE_MS = 10000;
 const MAX_UPDATES_BEFORE_SAVE = 50;
 
@@ -25,10 +21,8 @@ export function useDocumentChannel(documentId, user, {
 } = {}) {
     const [activeUsers, setActiveUsers] = useState([]);
     const [connectionState, setConnectionState] = useState(ConnectionState.DISCONNECTED);
-    const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
     const channelRef = useRef(null);
-    const reconnectTimeoutRef = useRef(null);
     const saveTimeoutRef = useRef(null);
     const updateCountRef = useRef(0);
     const isSavingRef = useRef(false);
@@ -40,24 +34,22 @@ export function useDocumentChannel(documentId, user, {
     // ─────────────────────────────────────────────────────────────
 
     const connect = useCallback(() => {
-        if (!documentId || !window.Echo || !user) return;
-
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
+        if (!documentId || !window.Echo || !user) {
+            setConnectionState(ConnectionState.DISCONNECTED);
+            return;
         }
 
-        setConnectionState(reconnectAttempts > 0 
-            ? ConnectionState.RECONNECTING 
-            : ConnectionState.CONNECTING
-        );
+        // Leave existing channel if any
+        if (channelRef.current) {
+            window.Echo.leave(channelName);
+            channelRef.current = null;
+        }
 
         try {
             const channel = window.Echo.join(channelName)
                 .here((users) => {
                     setActiveUsers(users);
                     setConnectionState(ConnectionState.CONNECTED);
-                    setReconnectAttempts(0);
                 })
                 .joining((joiningUser) => {
                     setActiveUsers((prev) => {
@@ -71,7 +63,9 @@ export function useDocumentChannel(documentId, user, {
                     onUserLeave?.(leavingUser);
                 })
                 .error(() => {
-                    handleDisconnect();
+                    setConnectionState(ConnectionState.DISCONNECTED);
+                    channelRef.current = null;
+                    setActiveUsers([]);
                 });
 
             // Listen for update whispers
@@ -90,45 +84,26 @@ export function useDocumentChannel(documentId, user, {
 
             channelRef.current = channel;
         } catch {
-            handleDisconnect();
-        }
-    }, [documentId, user, channelName, reconnectAttempts, onUserJoin, onUserLeave, onRemoteUpdate, onRemoteRestore]);
-
-    const handleDisconnect = useCallback(() => {
-        setConnectionState(ConnectionState.DISCONNECTED);
-        channelRef.current = null;
-        setActiveUsers([]);
-
-        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            const delay = Math.min(RECONNECT_DELAY_BASE * Math.pow(2, reconnectAttempts), 30000);
-            reconnectTimeoutRef.current = setTimeout(() => {
-                setReconnectAttempts(prev => prev + 1);
-            }, delay);
-        }
-    }, [reconnectAttempts]);
-
-    const reconnect = useCallback(() => {
-        setReconnectAttempts(0);
-        if (channelRef.current) {
-            window.Echo?.leave(channelName);
+            setConnectionState(ConnectionState.DISCONNECTED);
             channelRef.current = null;
+            setActiveUsers([]);
         }
-        connect();
-    }, [channelName, connect]);
+    }, [documentId, user, channelName, onUserJoin, onUserLeave, onRemoteUpdate, onRemoteRestore]);
 
-    // Connect on mount / reconnect on attempt change
+    // Connect on mount
     useEffect(() => {
-        if (!documentId || !window.Echo || !user) return;
+        if (!documentId || !user) return;
 
         connect();
 
         return () => {
-            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-            window.Echo?.leave(channelName);
-            channelRef.current = null;
+            if (channelRef.current) {
+                window.Echo?.leave(channelName);
+                channelRef.current = null;
+            }
         };
-    }, [documentId, user?.id, reconnectAttempts]);
+    }, [documentId, user?.id]);
 
     // Listen for global Pusher state changes
     useEffect(() => {
@@ -138,14 +113,16 @@ export function useDocumentChannel(documentId, user, {
         const handleStateChange = (states) => {
             if (states.current === 'connected' && states.previous !== 'connected') {
                 if (documentId && user && !channelRef.current) connect();
-            } else if (states.current === 'disconnected' || states.current === 'failed') {
-                handleDisconnect();
+            } else if (states.current !== 'connected') {
+                setConnectionState(ConnectionState.DISCONNECTED);
+                channelRef.current = null;
+                setActiveUsers([]);
             }
         };
 
         pusher.connection.bind('state_change', handleStateChange);
         return () => pusher.connection.unbind('state_change', handleStateChange);
-    }, [documentId, user, connect, handleDisconnect]);
+    }, [documentId, user, connect]);
 
     // ─────────────────────────────────────────────────────────────
     // Broadcasting
@@ -219,8 +196,7 @@ export function useDocumentChannel(documentId, user, {
         activeUsers,
         connectionState,
         isConnected: connectionState === ConnectionState.CONNECTED,
-        reconnectAttempts,
-        reconnect,
+        connect,
         broadcast,
         broadcastRestore,
         scheduleSave,

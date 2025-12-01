@@ -53,15 +53,14 @@ Alternatively, you can modify the port mappings in `docker-compose.yml` to use d
    cd LinkMobilityCRDT
    ```
 
-2. **Build and start Docker containers**
+2. **Install PHP dependencies** (required before using Sail)
+   ```bash
+   composer install
+   ```
+3. **Build and start Docker containers**
    ```bash
    ./vendor/bin/sail build
    ./vendor/bin/sail up -d
-   ```
-
-3. **Install PHP dependencies**
-   ```bash
-   ./vendor/bin/sail composer install
    ```
 
 4. **Run database migrations**

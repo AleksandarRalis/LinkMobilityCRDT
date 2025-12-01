@@ -85,8 +85,6 @@ export default function DocumentEditor() {
     const {
         activeUsers,
         connectionState,
-        reconnectAttempts,
-        reconnect,
         broadcast,
         broadcastRestore,
         scheduleSave,
@@ -208,7 +206,7 @@ export default function DocumentEditor() {
                                 <h1 className="text-xl font-semibold text-white">
                                     {document?.title || 'Untitled Document'}
                                 </h1>
-                                <ConnectionStatus state={connectionState} reconnectAttempts={reconnectAttempts} onReconnect={reconnect} />
+                                <ConnectionStatus state={connectionState} />
                             </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -282,18 +280,13 @@ export default function DocumentEditor() {
             />
 
             {/* Disconnection Banner */}
-            {connectionState === ConnectionState.DISCONNECTED && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS && (
+            {connectionState === ConnectionState.DISCONNECTED && (
                 <div className="bg-red-900/50 border-b border-red-800 px-4 py-3">
-                    <div className="max-w-5xl mx-auto flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-red-200">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <span className="text-sm">Connection lost. Changes may not sync with other users.</span>
-                        </div>
-                        <button onClick={reconnect} className="px-3 py-1 text-sm bg-red-800 hover:bg-red-700 text-white rounded transition-colors">
-                            Reconnect
-                        </button>
+                    <div className="max-w-5xl mx-auto flex items-center gap-2 text-red-200">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span className="text-sm">Disconnected. Reconnecting automatically...</span>
                     </div>
                 </div>
             )}
@@ -315,9 +308,7 @@ export default function DocumentEditor() {
     );
 }
 
-const MAX_RECONNECT_ATTEMPTS = 5;
-
-function ConnectionStatus({ state, reconnectAttempts, onReconnect }) {
+function ConnectionStatus({ state }) {
     if (state === ConnectionState.CONNECTED) {
         return (
             <span className="flex items-center gap-1 text-xs text-green-500">
@@ -327,28 +318,10 @@ function ConnectionStatus({ state, reconnectAttempts, onReconnect }) {
         );
     }
 
-    if (state === ConnectionState.CONNECTING) {
-        return (
-            <span className="flex items-center gap-1 text-xs text-amber-500">
-                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                Connecting...
-            </span>
-        );
-    }
-
-    if (state === ConnectionState.RECONNECTING) {
-        return (
-            <span className="flex items-center gap-1 text-xs text-amber-500">
-                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                Reconnecting ({reconnectAttempts}/5)...
-            </span>
-        );
-    }
-
     return (
-        <button onClick={onReconnect} className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300 transition-colors">
-            <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-            Disconnected - Click to retry
-        </button>
+        <span className="flex items-center gap-1 text-xs text-red-400">
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>
+            Reconnecting...
+        </span>
     );
 }
